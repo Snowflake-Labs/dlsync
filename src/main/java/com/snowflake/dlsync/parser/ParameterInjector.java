@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ParameterInjector {
     private static final String PARAMETER_FORMAT = "${%s}";
-    private static final String PARAMETRIZATION_START_REGEX = "([(),\\.\\s\\'\\\"])";
+    private static final String PARAMETRIZATION_START_REGEX = "([(),\\.\\s\\'\\\"@])";
     private static final String PARAMETRIZATION_END_REGEX = "([(),;\\.\\s\\'\\\"])";
 
 

@@ -61,20 +61,36 @@ public class ChangeManager {
     public void rollback() throws SQLException, IOException {
         log.info("Starting ROLLBACK scripts.");
         startSync(ChangeType.ROLLBACK);
-        Set<String> deployedScriptIds = scriptRepo.loadScriptHash();
+        Set<String> deployedScriptIds = new HashSet<>(scriptRepo.loadScriptHash());
         scriptSource.getAllScripts().forEach(script -> deployedScriptIds.remove(script.getId()));
         List<MigrationScript> migrations = scriptRepo.getMigrationScripts(deployedScriptIds);
-
         dependencyGraph.addNodes(migrations);
-        List<Script> sequencedScript = dependencyGraph.topologicalSort();
 
+        List<Script> changedScripts = scriptSource.getAllScripts()
+                .stream()
+                .filter(script -> !config.isScriptExcluded(script))
+                .filter(script -> !script.getObjectType().isMigration())
+                .filter(script -> scriptRepo.isScriptChanged(script))
+                .collect(Collectors.toList());
+        dependencyGraph.addNodes(changedScripts);
+
+        List<Script> sequencedScript = dependencyGraph.topologicalSort();
         int size = sequencedScript.size();
         int index = 1;
         for(int i = sequencedScript.size() - 1; i >= 0; i--) {
-            MigrationScript migration = (MigrationScript) sequencedScript.get(i);
-            log.info("{} of {}: Rolling-back object: {}", index++, size, migration);
-            parameterInjector.injectParametersAll(migration);
-            scriptRepo.executeRollback(migration);
+            Script script = sequencedScript.get(i);
+            if(script instanceof MigrationScript) {
+                MigrationScript migration = (MigrationScript)script;
+                log.info("{} of {}: Rolling-back object: {}", index++, size, migration);
+                parameterInjector.injectParametersAll(migration);
+                scriptRepo.executeRollback(migration);
+            }
+            else {
+                log.info("{} of {}: Rolling-back object: {}", index++, size, script);
+                parameterInjector.injectParameters(script);
+                scriptRepo.createScriptObject(script, false);
+            }
+
         }
         endSyncSuccess(ChangeType.ROLLBACK, 0L);
     }
