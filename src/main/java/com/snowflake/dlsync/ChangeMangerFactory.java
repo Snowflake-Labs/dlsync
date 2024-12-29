@@ -11,6 +11,15 @@ import java.io.IOException;
 public class ChangeMangerFactory {
     public static ChangeManager createChangeManger() throws IOException {
         ConfigManager configManager = new ConfigManager();
+        return createChangeManger(configManager);
+    }
+
+    public static ChangeManager createChangeManger(String scriptRoot, String profile) throws IOException {
+        ConfigManager configManager = new ConfigManager(scriptRoot, profile);
+        return createChangeManger(configManager);
+    }
+
+    public static ChangeManager createChangeManger(ConfigManager configManager) throws IOException {
         configManager.init();
         ScriptSource scriptSource = new ScriptSource(configManager.getScriptRoot());
         ScriptRepo scriptRepo = new ScriptRepo(configManager.getJdbcProperties());

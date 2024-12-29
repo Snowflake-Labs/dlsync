@@ -31,16 +31,20 @@ public class ConfigManager {
     private AtomicBoolean isInitialized = new AtomicBoolean(false);
 
     public ConfigManager() {
-        this(System.getenv(SCRIPT_ROOT_KEY));
+        this(System.getenv(SCRIPT_ROOT_KEY), StringUtils.isEmpty(System.getenv("profile")) ? "dev" : System.getenv("profile").toLowerCase());
     }
 
-    public ConfigManager(String scriptRoot) {
-        this.scriptRoot = scriptRoot;
-        log.info("Using [{}] as script root path.", scriptRoot);
+    public ConfigManager(String scriptRoot, String profile) {
+        this.scriptRoot = scriptRoot == null ? System.getenv(SCRIPT_ROOT_KEY) : scriptRoot;
+        String fallbackProfile = StringUtils.isEmpty(System.getenv("profile")) ? "dev" : System.getenv("profile").toLowerCase();
+        this.profile = profile == null ? fallbackProfile : profile;
+        log.info("Using [{}] as script root path.", this.scriptRoot);
+        log.info("Using [{}] as profile.", this.profile);
     }
 
-    public ConfigManager(String scriptRoot, Properties jdbcProperties, Properties scriptParameters, Config config) {
+    public ConfigManager(String scriptRoot, String profile, Properties jdbcProperties, Properties scriptParameters, Config config) {
         this.scriptRoot = scriptRoot;
+        this.profile = profile;
         this.jdbcProperties = jdbcProperties;
         this.scriptParameters = scriptParameters;
         this.config = config;
@@ -56,8 +60,6 @@ public class ConfigManager {
 
     public void readEnvVariables() {
         jdbcProperties = new Properties();
-        profile = StringUtils.isEmpty(System.getenv("profile")) ? "dev" : System.getenv("profile").toLowerCase();
-        log.info("Using [{}] profile.", profile);
         for(String key: JDBC_KEY) {
             String jdbcConfigValue = System.getenv(key);
             if(jdbcConfigValue == null) {

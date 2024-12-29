@@ -158,18 +158,15 @@ public class ChangeManager {
         return true;
     }
 
-    public void createAllScriptsFromDB(List<String> schemaNames) throws SQLException, IOException {
-        log.info("Started create scripts from database with {} schemas", schemaNames == null ? "All":schemaNames);
+    public void createAllScriptsFromDB() throws SQLException, IOException {
+        log.info("Started create scripts.");
         startSync(ChangeType.CREATE_SCRIPT);
         HashSet<String> configTableWithParameter = new HashSet<>();
         if(config != null && config.getConfigTables() != null) {
             configTableWithParameter.addAll(config.getConfigTables());
         }
         Set<String> configTables = parameterInjector.injectParameters(configTableWithParameter);
-
-        if(schemaNames == null) {
-            schemaNames = scriptRepo.getAllSchemasInDatabase(scriptRepo.getDatabaseName());
-        }
+        List<String> schemaNames = scriptRepo.getAllSchemasInDatabase(scriptRepo.getDatabaseName());
         int count = 0;
         for(String schema: schemaNames) {
             List<Script> scripts = scriptRepo.getAllScriptsInSchema(schema);

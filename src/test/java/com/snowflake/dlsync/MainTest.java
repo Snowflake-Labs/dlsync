@@ -37,6 +37,18 @@ public class MainTest {
     }
 
     @Test
+    public void testBuildCommandProfile() throws ParseException {
+        String[] args = {"deploy", "--script-root", "test/scripts", "--profile", "prod"};
+        CommandLine commandLine = Main.buildCommandOptions(args);
+        assertTrue(!commandLine.hasOption("--only-hashes"));
+        assertTrue(commandLine.getOptionValue("script-root").equals("test/scripts"));
+        assertTrue(commandLine.getOptionValue("profile").equals("prod"));
+
+        String[] invalidArgs = new String[]{"deploy", "--profile"};
+        assertThrows(MissingArgumentException.class,  () -> Main.buildCommandOptions(invalidArgs));
+    }
+
+    @Test
     public void testGetChangeType() {
         String[] args = {"deploy"};
         ChangeType changeType = Main.getChangeType(args);
