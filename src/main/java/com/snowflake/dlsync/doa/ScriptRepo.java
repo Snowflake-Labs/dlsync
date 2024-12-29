@@ -261,7 +261,7 @@ public class ScriptRepo {
     }
 
     public List<Script> getScriptsInSchema(String schema, ScriptObjectType type) throws SQLException {
-        log.info("Getting {} type scripts in schema: {}",type, schema);
+        log.debug("Getting {} type scripts in schema: {}",type, schema);
         String sql = "";
         if(type == ScriptObjectType.FUNCTIONS || type == ScriptObjectType.PROCEDURES) {
             sql = String.format("SELECT %s_NAME, ARGUMENT_SIGNATURE FROM INFORMATION_SCHEMA.%s WHERE %s_SCHEMA = '%s'",type.getEscapedSingular(), type, type.getEscapedSingular(), schema.toUpperCase());
@@ -532,7 +532,7 @@ public class ScriptRepo {
             }
             insertScriptEvent(migrationScript, "SUCCESS", "Successfully Verified Object");
             connection.commit();
-            log.info("Successfully Verified object: {}", migrationScript);
+            log.debug("Successfully Verified object: {}", migrationScript);
             return true;
         }
         catch (SQLException e) {
@@ -558,6 +558,10 @@ public class ScriptRepo {
             log.warn("Script file does not exist for the db object: {}", script);
         }
         return scriptHash.getOrDefault(script.getId(), script.getHash()).equals(script.getHash());
+    }
+
+    public boolean compareScript(Script script1, Script script2) {
+        return SqlTokenizer.compareScripts(script1, script2);
     }
 }
 

@@ -15,6 +15,6 @@ def main(snowpark_session):
   ## Write the results of the dataframe into a target table
   results_df.write.mode("overwrite").save_as_table("${EXAMPLE_DB}.${MAIN_SCHEMA}.MATERILIZED_ORDER_SUMMARY")
 
-  return f"Succeeded: Results inserted into table {${EXAMPLE_DB}.${MAIN_SCHEMA}.MATERILIZED_ORDER_SUMMARY}"
+  return f"Succeeded: Results inserted into table ${EXAMPLE_DB}.${MAIN_SCHEMA}.MATERILIZED_ORDER_SUMMARY"
 $$
 ;
