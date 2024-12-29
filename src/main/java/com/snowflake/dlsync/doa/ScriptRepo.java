@@ -528,13 +528,7 @@ public class ScriptRepo {
             connection.setAutoCommit(false);
             if(migrationScript.getVerify() != null && !migrationScript.getVerify().trim().equals("")) {
                 log.debug("Executing verify using the SQL: {}", migrationScript.getVerify());
-                ResultSet resultSet = statement.executeQuery(migrationScript.getVerify());
-//                if(!resultSet.next()) {
-//                    log.error("Error while verifying the object {} with sql [{}]. The verify script returned empty result.", migrationScript, migrationScript.getVerify());
-//                    insertScriptEvent(migrationScript, "ERROR", "The verify script returned empty result.");
-//                    connection.commit();
-//                    return false;
-//                }
+                statement.executeQuery(migrationScript.getVerify());
             }
             insertScriptEvent(migrationScript, "SUCCESS", "Successfully Verified Object");
             connection.commit();
