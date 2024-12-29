@@ -1,7 +1,7 @@
 package com.snowflake.dlsync.models;
 
 public enum ScriptObjectType {
-    VIEWS("VIEW"),FUNCTIONS("FUNCTION"),PROCEDURES("PROCEDURE"),STREAMS("STREAM"),TASKS("TASK"),SEQUENCES("SEQUENCE"),STAGES("STAGE"),TABLES("TABLE"), FILE_FORMATS("FILE FORMAT");
+    VIEWS("VIEW"),FUNCTIONS("FUNCTION"),PROCEDURES("PROCEDURE"),FILE_FORMATS("FILE FORMAT"),TABLES("TABLE"),STREAMS("STREAM"),SEQUENCES("SEQUENCE"),STAGES("STAGE"),TASKS("TASK");
 
     private final String singular;
     private ScriptObjectType(String type) {

@@ -559,5 +559,9 @@ public class ScriptRepo {
         }
         return scriptHash.getOrDefault(script.getId(), script.getHash()).equals(script.getHash());
     }
+
+    public boolean compareScript(Script script1, Script script2) {
+        return SqlTokenizer.compareScripts(script1, script2);
+    }
 }
 

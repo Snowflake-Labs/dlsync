@@ -30,6 +30,11 @@ public class SqlTokenizer {
 
     private static final String STRING_LITERAL_REGEX = "(?<!as\\s{1,5})'([^'\\\\]*(?:\\\\.[^'\\\\]*)*(?:''[^'\\\\]*)*)'";
 
+    private static final String VIEW_BODY_REGEX = "(CREATE\\s+OR\\s+REPLACE\\s+VIEW\\s+)(?<name>[\\w.${}]+)(\\s*\\([^\\)]+\\))?\\s+AS\\s+(?<body>[\\s\\S]+)$";
+    private static final String FUNCTION_BODY_REGEX = "(CREATE\\s+OR\\s+REPLACE\\s+FUNCTION\\s+)(?<name>[\\w.${}]+)(?:[\\s\\S]*?AS\\s+('|\\$\\$)\\s*)(?<body>[\\s\\S]+)('|\\$\\$)\\s*;$";
+    private static final String PROCEDURE_BODY_REGEX = "(CREATE\\s+OR\\s+REPLACE\\s+PROCEDURE\\s+)(?<name>[\\w.${}]+)(?:[\\s\\S]*?AS\\s+('|\\$\\$)\\s*)(?<body>[\\s\\S]+)('|\\$\\$)\\s*;$";
+    private static final String FILE_FORMAT_BODY_REGEX = "(CREATE\\s+OR\\s+REPLACE\\s+FILE FORMAT\\s+)(?<body>[\\w.${}]+)([\\s\\S]+)$";
+
     public static List<Migration> parseMigrationScripts(String content) {
         List<Migration> migrations = new ArrayList<>();
 
@@ -271,5 +276,39 @@ public class SqlTokenizer {
 //        }
 //        return false;
 //    }
+
+    public static boolean compareScripts(Script script1, Script script2) {
+        String content1 = removeSqlComments(script1.getContent());
+        String content2 = removeSqlComments(script2.getContent());
+        content1 = content1.replace("''", "'");
+        content2 = content2.replace("''", "'");
+        Pattern pattern;
+        if(script1.getObjectType().equals(ScriptObjectType.VIEWS)) {
+            pattern = Pattern.compile(VIEW_BODY_REGEX, Pattern.CASE_INSENSITIVE);
+        }
+        else if(script1.getObjectType().equals(ScriptObjectType.FUNCTIONS)) {
+            pattern = Pattern.compile(FUNCTION_BODY_REGEX, Pattern.CASE_INSENSITIVE);
+        }
+        else if(script1.getObjectType().equals(ScriptObjectType.PROCEDURES)) {
+            pattern = Pattern.compile(PROCEDURE_BODY_REGEX, Pattern.CASE_INSENSITIVE);
+        }
+        else if(script1.getObjectType().equals(ScriptObjectType.FILE_FORMATS)) {
+            pattern = Pattern.compile(FILE_FORMAT_BODY_REGEX, Pattern.CASE_INSENSITIVE);
+        }
+        else {
+            pattern = Pattern.compile("(?<body>[\\s\\S]+)$");
+        }
+        Matcher viewMatcher1 = pattern.matcher(content1);
+        Matcher viewMatcher2 = pattern.matcher(content2);
+        if(viewMatcher1.find() && viewMatcher2.find()) {
+            String query1 = viewMatcher1.group("body");
+            String query2 = viewMatcher2.group("body");
+            if(!query2.equals(query1)) {
+                log.info("debug");
+            }
+            return query1.equals(query2);
+        }
+        return content1.equals(content2);
+    }
 
 }

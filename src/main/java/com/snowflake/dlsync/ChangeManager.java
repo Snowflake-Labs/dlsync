@@ -1,16 +1,13 @@
 package com.snowflake.dlsync;
 
-import com.snowflake.dlsync.dependency.DependencyExtractor;
 import com.snowflake.dlsync.dependency.DependencyGraph;
 import com.snowflake.dlsync.doa.ScriptRepo;
 import com.snowflake.dlsync.doa.ScriptSource;
 import com.snowflake.dlsync.models.*;
 import com.snowflake.dlsync.parser.ParameterInjector;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 
 import java.io.*;
-import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
 import java.util.*;
@@ -87,10 +84,10 @@ public class ChangeManager {
         startSync(ChangeType.VERIFY);
         scriptRepo.loadDeployedHash();
         int failedCount = 0;
-        List<Script> allScripts = scriptSource.getAllScripts().stream()
+        Set<Script> sourceScripts = scriptSource.getAllScripts().stream()
                 .filter(script -> !config.isScriptExcluded(script))
-                .collect(Collectors.toList());
-        Map<String, List<MigrationScript>> groupedMigrationScripts = allScripts.stream()
+                .collect(Collectors.toSet());
+        Map<String, List<MigrationScript>> groupedMigrationScripts = sourceScripts.stream()
                 .filter(script -> script instanceof MigrationScript)
                 .map(script -> (MigrationScript)script)
                 .collect(Collectors.groupingBy(Script::getObjectName));
@@ -112,14 +109,20 @@ public class ChangeManager {
 
         List<String> schemaNames = scriptRepo.getAllSchemasInDatabase(scriptRepo.getDatabaseName());
         for(String schema: schemaNames) {
-            List<Script> stateScripts = scriptRepo.getStateScriptsInSchema(schema);
+            List<Script> stateScripts = scriptRepo.getStateScriptsInSchema(schema)
+                    .stream()
+                    .filter(script -> !config.isScriptExcluded(script))
+                    .collect(Collectors.toList());
+
             for(Script script: stateScripts) {
                 parameterInjector.parametrizeScript(script, true);
-                if(config.isScriptExcluded(script)) {
-                    log.info("Script {} is excluded from verification.", script);
+                Script sourceScript = sourceScripts.stream().filter(s -> s.equals(script)).findFirst().orElse(null);
+                if(sourceScript == null) {
+                    log.error("Script [{}] is not found in source.", script);
+                    failedCount++;
                     continue;
                 }
-                if (!scriptRepo.verifyScript(script)) {
+                if (!scriptRepo.compareScript(script, sourceScript)) {
                     failedCount++;
                     log.error("Script verification failed for {}", script);
                 } else {
@@ -134,7 +137,7 @@ public class ChangeManager {
             throw new RuntimeException("Verification failed!");
         }
         log.info("All scripts have been verified successfully.");
-        endSyncSuccess(ChangeType.VERIFY, (long)allScripts.size());
+        endSyncSuccess(ChangeType.VERIFY, (long)sourceScripts.size());
         return true;
     }
 
