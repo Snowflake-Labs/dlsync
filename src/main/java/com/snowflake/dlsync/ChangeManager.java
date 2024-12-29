@@ -87,25 +87,6 @@ public class ChangeManager {
         Set<Script> sourceScripts = scriptSource.getAllScripts().stream()
                 .filter(script -> !config.isScriptExcluded(script))
                 .collect(Collectors.toSet());
-        Map<String, List<MigrationScript>> groupedMigrationScripts = sourceScripts.stream()
-                .filter(script -> script instanceof MigrationScript)
-                .map(script -> (MigrationScript)script)
-                .collect(Collectors.groupingBy(Script::getObjectName));
-
-        for(String objectName: groupedMigrationScripts.keySet()) {
-            List<MigrationScript> sameObjectMigrations = groupedMigrationScripts.get(objectName);
-            Optional<MigrationScript> lastMigration = sameObjectMigrations.stream().sorted(Comparator.comparing(MigrationScript::getVersion).reversed()).findFirst();
-            if (lastMigration.isPresent()) {
-                MigrationScript migrationScript = lastMigration.get();
-                parameterInjector.injectParametersAll(migrationScript);
-                if (!scriptRepo.executeVerify(migrationScript)) {
-                    failedCount++;
-                    log.error("Script verification failed for {}", migrationScript);
-                } else {
-                    log.info("Verified Script {} is correct.", migrationScript);
-                }
-            }
-        }
 
         List<String> schemaNames = scriptRepo.getAllSchemasInDatabase(scriptRepo.getDatabaseName());
         for(String schema: schemaNames) {
@@ -124,9 +105,29 @@ public class ChangeManager {
                 }
                 if (!scriptRepo.compareScript(script, sourceScript)) {
                     failedCount++;
-                    log.error("Script verification failed for {}", script);
+                    log.error("Script verification failed for {}. The source script is different from db object [{}] ", script, script.getContent());
                 } else {
                     log.info("Verified Script {} is correct.", script);
+                }
+            }
+        }
+
+        Map<String, List<MigrationScript>> groupedMigrationScripts = sourceScripts.stream()
+                .filter(script -> script instanceof MigrationScript)
+                .map(script -> (MigrationScript)script)
+                .collect(Collectors.groupingBy(Script::getObjectName));
+
+        for(String objectName: groupedMigrationScripts.keySet()) {
+            List<MigrationScript> sameObjectMigrations = groupedMigrationScripts.get(objectName);
+            Optional<MigrationScript> lastMigration = sameObjectMigrations.stream().sorted(Comparator.comparing(MigrationScript::getVersion).reversed()).findFirst();
+            if (lastMigration.isPresent()) {
+                MigrationScript migrationScript = lastMigration.get();
+                parameterInjector.injectParametersAll(migrationScript);
+                if (!scriptRepo.executeVerify(migrationScript)) {
+                    failedCount++;
+                    log.error("Script verification failed for {}. The verify script [{}] failed to execute.", migrationScript, migrationScript.getVerify());
+                } else {
+                    log.info("Verified Script {} is correct.", migrationScript);
                 }
             }
         }

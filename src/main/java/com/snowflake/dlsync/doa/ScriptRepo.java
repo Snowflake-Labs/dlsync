@@ -261,7 +261,7 @@ public class ScriptRepo {
     }
 
     public List<Script> getScriptsInSchema(String schema, ScriptObjectType type) throws SQLException {
-        log.info("Getting {} type scripts in schema: {}",type, schema);
+        log.debug("Getting {} type scripts in schema: {}",type, schema);
         String sql = "";
         if(type == ScriptObjectType.FUNCTIONS || type == ScriptObjectType.PROCEDURES) {
             sql = String.format("SELECT %s_NAME, ARGUMENT_SIGNATURE FROM INFORMATION_SCHEMA.%s WHERE %s_SCHEMA = '%s'",type.getEscapedSingular(), type, type.getEscapedSingular(), schema.toUpperCase());
@@ -528,11 +528,17 @@ public class ScriptRepo {
             connection.setAutoCommit(false);
             if(migrationScript.getVerify() != null && !migrationScript.getVerify().trim().equals("")) {
                 log.debug("Executing verify using the SQL: {}", migrationScript.getVerify());
-                statement.executeQuery(migrationScript.getVerify());
+                ResultSet resultSet = statement.executeQuery(migrationScript.getVerify());
+//                if(!resultSet.next()) {
+//                    log.error("Error while verifying the object {} with sql [{}]. The verify script returned empty result.", migrationScript, migrationScript.getVerify());
+//                    insertScriptEvent(migrationScript, "ERROR", "The verify script returned empty result.");
+//                    connection.commit();
+//                    return false;
+//                }
             }
             insertScriptEvent(migrationScript, "SUCCESS", "Successfully Verified Object");
             connection.commit();
-            log.info("Successfully Verified object: {}", migrationScript);
+            log.debug("Successfully Verified object: {}", migrationScript);
             return true;
         }
         catch (SQLException e) {

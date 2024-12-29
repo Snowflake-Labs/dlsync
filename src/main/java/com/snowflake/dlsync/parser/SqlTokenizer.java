@@ -303,9 +303,6 @@ public class SqlTokenizer {
         if(viewMatcher1.find() && viewMatcher2.find()) {
             String query1 = viewMatcher1.group("body");
             String query2 = viewMatcher2.group("body");
-            if(!query2.equals(query1)) {
-                log.info("debug");
-            }
             return query1.equals(query2);
         }
         return content1.equals(content2);
