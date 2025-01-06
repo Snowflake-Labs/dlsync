@@ -1,6 +1,6 @@
 # DLSync
 
-<img src="https://github.com/user-attachments/assets/95be0264-04a0-4dc3-8951-93374609ec3c" height="300" title="logo" alt="logo">
+<img src="https://github.com/user-attachments/assets/24da3d86-f58e-4b55-8d9e-b3194117a566" height="300" title="logo" alt="logo">
 
 ---
 
