@@ -188,7 +188,18 @@ public class ChangeManager {
         startSync(ChangeType.CREATE_LINEAGE);
         List<Script> scripts = scriptSource.getAllScripts();
         dependencyGraph.addNodes(scripts);
-        List<ScriptDependency> manualDependencies = scriptSource.getManuelLineages(scripts);
+        List<ScriptDependency> manualDependencies = config.getDependencyOverride()
+                .stream()
+                .flatMap(dependencyOverride -> {
+                    Script script = scripts.stream().filter(s -> s.getFullObjectName().equals(dependencyOverride.getScript())).findFirst().get();
+                    List<Script> dependencies = dependencyOverride.getDependencies()
+                            .stream()
+                            .map(dependencyName -> scripts.stream().filter(s -> s.getFullObjectName().equals(dependencyName)).findFirst().get())
+                            .collect(Collectors.toList());
+                    return dependencies.stream().map(dependency -> new ScriptDependency(script, dependency));
+                })
+                .collect(Collectors.toList());
+
         List<ScriptDependency> dependencyList = dependencyGraph.getDependencyList();
         dependencyList.addAll(manualDependencies);
         scriptRepo.insertDependencyList(dependencyList);

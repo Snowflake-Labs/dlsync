@@ -24,15 +24,13 @@ public class ScriptSource {
 
     public ScriptSource(String scriptRoot) {
         this.scriptRoot = scriptRoot;
-        mainScriptDir = Path.of(scriptRoot, "main").toString();
+        mainScriptDir = Files.exists(Path.of(scriptRoot, "main")) ? Path.of(scriptRoot, "main").toString(): scriptRoot;
         testScriptDir = Path.of(scriptRoot, "tests").toString();
         log.debug("Script file reader initialized with scriptRoot: {}", scriptRoot);
     }
 
     private List<String> readDatabase() {
-        File mainScriptFile = new File(mainScriptDir);
-        File scriptRootFile = new File(scriptRoot);
-        File scriptFiles = mainScriptFile.exists() ? mainScriptFile: scriptRootFile;
+        File scriptFiles = new File(mainScriptDir);
         List<String> dbs = new ArrayList<>();
         if(scriptFiles.exists()) {
             File[] allDbs = scriptFiles.listFiles();
@@ -191,20 +189,6 @@ public class ScriptSource {
             return names[0];
         }
         return null;
-    }
-
-    public List<ScriptDependency> getManuelLineages(List<Script> allScripts) throws IOException {
-        String configTablesFileName = "lineage_config.txt";
-        File configTableFile = Path.of(scriptRoot, configTablesFileName).toFile();
-        if(configTableFile.exists()) {
-
-            return Files.readAllLines(configTableFile.toPath())
-                    .stream()
-                    .map(line -> line.split(" -> "))
-                    .map(names -> new ScriptDependency(getScriptByName(allScripts, names[0]), getScriptByName(allScripts, names[1])))
-                    .collect(Collectors.toList());
-        }
-        return new ArrayList<>();
     }
 
     private Script getScriptByName(List<Script> allScripts, String fullObjectName) {
