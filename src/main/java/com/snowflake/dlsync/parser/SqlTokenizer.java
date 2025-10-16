@@ -29,7 +29,7 @@ public class SqlTokenizer {
     private static final String IDENTIFIER_REGEX = "((?:\\\"[^\"]+\\\"\\.)|(?:[{}$a-zA-Z0-9_]+\\.))?((?:\\\"[^\"]+\\\"\\.)|(?:[{}$a-zA-Z0-9_]+\\.))?(?i)";
     private static final String MIGRATION_REGEX = VERSION_REGEX + AUTHOR_REGEX + CONTENT_REGEX + ROLL_BACK_REGEX + VERIFY_REGEX;
 
-    private static final String DDL_REGEX = ";\\n+(CREATE\\s+OR\\s+REPLACE\\s+(TRANSIENT\\s|HYBRID\\s|SECURE\\s)?(?<type>FILE FORMAT|\\w+)\\s+(?<name>[\\w.]+)([\\s\\S]+?)(?=(;\\nCREATE\\s+)|(;$)))";
+    private static final String DDL_REGEX = ";\\n+(CREATE\\s+OR\\s+REPLACE\\s+(TRANSIENT\\s|HYBRID\\s|SECURE\\s)?(?<type>FILE FORMAT|\\w+)\\s+(?<name>[\\\"\\w.]+)([\\s\\S]+?)(?=(;\\nCREATE\\s+)|(;$)))";
 
     private static final String STRING_LITERAL_REGEX = "(?<!as\\s{1,5})'([^'\\\\]*(?:\\\\.[^'\\\\]*)*(?:''[^'\\\\]*)*)'";
 
