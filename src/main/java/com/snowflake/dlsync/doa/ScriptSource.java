@@ -97,7 +97,8 @@ public class ScriptSource {
                 File[] scriptFiles = scriptType.listFiles();
                 for(File file: scriptFiles) {
                     if(file.getName().toLowerCase().endsWith(".sql")){
-                       Set<Script> scriptsFromFile = SqlTokenizer.parseScript(file.getPath(), file.getName(), scriptType.getName(), Files.readString(file.toPath()));
+                       String fileName = file.getName().replace("'", "\"");
+                       Set<Script> scriptsFromFile = SqlTokenizer.parseScript(file.getPath(), fileName, scriptType.getName(), Files.readString(file.toPath()));
                        scripts.addAll(scriptsFromFile);
                     }
                     else {
@@ -114,7 +115,8 @@ public class ScriptSource {
 
     public Set<Script> buildScriptFromFile(File file, File scriptType) throws IOException {
         String content = Files.readString(file.toPath());
-        String objectName = SqlTokenizer.extractObjectName(file.getName(), content);
+        String fileName = file.getName().replace("'", "\"");
+        String objectName = SqlTokenizer.extractObjectName(fileName, content);
         ScriptObjectType objectType = ScriptObjectType.valueOf(scriptType.getName());
         String fullIdentifier = SqlTokenizer.getFirstFullIdentifier(objectName, content);
         if(fullIdentifier == null || fullIdentifier.isEmpty()) {
@@ -174,6 +176,7 @@ public class ScriptSource {
     public void createScriptFile(Script script) {
         try {
             String scriptFileName = script.getObjectName() + ".SQL";
+            scriptFileName = scriptFileName.replace("\"", "'");
             String scriptDirectoryPath = String.format("%s/%s/%s/%s", mainScriptDir, script.getDatabaseName(), script.getSchemaName(), script.getObjectType());
             File directory = new File(scriptDirectoryPath);
             directory.mkdirs();
