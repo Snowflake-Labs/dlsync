@@ -1,50 +1,33 @@
-
-
 package com.snowflake.dlsync.models;
 
 import com.snowflake.dlsync.Util;
-import lombok.extern.slf4j.Slf4j;
 
+import java.util.List;
 import java.util.Objects;
 
-@Slf4j
 public abstract class Script {
     private String scriptPath;
-    private String databaseName;
-    private String schemaName;
     private String objectName;
     private ScriptObjectType objectType;
     private String content;
     private String hash;
+    private List<MigrationScript> migrations;
 
-    public Script(String scriptPath, String databaseName, String schemaName, String objectName, ScriptObjectType objectType, String content) {
+    public Script(String scriptPath, String objectName, ScriptObjectType objectType, String content) {
         this.scriptPath = scriptPath;
-        this.databaseName = databaseName.toUpperCase();
-        this.schemaName = schemaName.toUpperCase();
         this.objectName = objectName.toUpperCase();
         this.objectType = objectType;
         this.content = content.trim();
         this.hash = hash = Util.getMd5Hash(this.content);
     }
 
+    public Script(String scriptPath, String objectName, ScriptObjectType objectType, String content, List<MigrationScript> migrations) {
+        this(scriptPath, objectName, objectType, content);
+        this.migrations = migrations;
+    }
+
     public String getScriptPath() {
         return scriptPath;
-    }
-
-    public String getDatabaseName() {
-        return databaseName;
-    }
-
-    public void setDatabaseName(String databaseName) {
-        this.databaseName = databaseName.toUpperCase();
-    }
-
-    public String getSchemaName() {
-        return schemaName;
-    }
-
-    public void setSchemaName(String schemaName) {
-        this.schemaName = schemaName.toUpperCase();
     }
 
     public String getObjectName() {
@@ -71,6 +54,22 @@ public abstract class Script {
         this.content = content.trim();
     }
 
+    public List<MigrationScript> getMigrations() {
+        if (isMigration()) {
+            return migrations;
+        }
+        throw new UnsupportedOperationException("Migrations are only available for migration type script.");
+    }
+
+    public  void setMigrations(List<MigrationScript> migrations) {
+        if (isMigration()) {
+            this.migrations = migrations;
+        }
+        else {
+            throw new UnsupportedOperationException("Migrations are only available for migration type script.");
+        }
+    }
+
     public String getHash() {
         return hash;
     }
@@ -79,8 +78,8 @@ public abstract class Script {
         this.hash = hash;
     }
 
-    public String getFullObjectName() {
-        return String.format("%s.%s.%s", databaseName, schemaName, objectName);
+    public boolean isMigration() {
+        return objectType.isMigration();
     }
 
     @Override
@@ -100,6 +99,10 @@ public abstract class Script {
     public String toString() {
         return getId();
     }
+
     public abstract String getId();
 
+    public abstract String getFullObjectName();
+
+    public abstract String resolveObjectReference(String partialName);
 }

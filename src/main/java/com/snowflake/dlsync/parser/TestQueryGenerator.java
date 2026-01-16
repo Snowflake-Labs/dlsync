@@ -1,13 +1,9 @@
 package com.snowflake.dlsync.parser;
 
+import com.snowflake.dlsync.models.SchemaScript;
 import com.snowflake.dlsync.models.Script;
 import com.snowflake.dlsync.models.TestScript;
-import com.snowflake.dlsync.parser.antlr.*;
 import lombok.extern.slf4j.Slf4j;
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CommonTokenStream;
-import org.antlr.v4.runtime.tree.ParseTree;
-import org.antlr.v4.runtime.tree.ParseTreeWalker;
 
 import java.io.IOException;
 import java.util.HashMap;

@@ -1,5 +1,6 @@
 package com.snowflake.dlsync.parser;
 
+import com.snowflake.dlsync.models.SchemaScript;
 import com.snowflake.dlsync.models.Script;
 import com.snowflake.dlsync.parser.antlr.SnowflakeParser;
 

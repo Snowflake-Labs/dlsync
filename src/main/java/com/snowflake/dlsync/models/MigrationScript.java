@@ -2,27 +2,39 @@ package com.snowflake.dlsync.models;
 
 public class MigrationScript extends Script {
 
+    private Script parentScript;
     private Long version;
     private String author;
     private String rollback;
     private String verify;
 
-    public MigrationScript(String scriptPath, String databaseName, String schemaName, String objectName, ScriptObjectType objectType, String content, Long version, String author, String rollback, String verify) {
-        super(scriptPath, databaseName, schemaName, objectName, objectType, content);
+    public MigrationScript(Script parentScript, String content, Long version, String author, String rollback, String verify) {
+        super(parentScript.getScriptPath(), parentScript.getObjectName(), parentScript.getObjectType(), content);
+        this.parentScript = parentScript;
         this.version = version;
         this.author = author;
         this.rollback = rollback;
         this.verify = verify;
     }
 
-    public MigrationScript(String databaseName, String schemaName, String objectName, ScriptObjectType objectType, String content, Long version, String author, String rollback, String verify) {
-        this(null, databaseName, schemaName, objectName, objectType, content, version, author, rollback, verify);
-    }
-
 
     @Override
     public String getId() {
-        return String.format("%s:%s", getFullObjectName(), version);
+        return String.format("%s:%s", parentScript.getFullObjectName(), version);
+    }
+
+    @Override
+    public String getFullObjectName() {
+        return parentScript.getFullObjectName();
+    }
+
+    @Override
+    public String resolveObjectReference(String partialName) {
+        return parentScript.resolveObjectReference(partialName);
+    }
+
+    public Script getParentScript() {
+        return parentScript;
     }
 
     public Long getVersion() {
@@ -56,4 +68,5 @@ public class MigrationScript extends Script {
     public void setVerify(String verify) {
         this.verify = verify;
     }
+
 }

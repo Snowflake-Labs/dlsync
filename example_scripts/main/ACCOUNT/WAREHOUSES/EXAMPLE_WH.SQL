@@ -1,0 +1,8 @@
+CREATE OR REPLACE WAREHOUSE example_wh
+  WAREHOUSE_SIZE = 'XSMALL'
+  WAREHOUSE_TYPE = 'STANDARD'
+  AUTO_SUSPEND = 300
+  AUTO_RESUME = TRUE
+  INITIALLY_SUSPENDED = TRUE
+  RESOURCE_MONITOR = compute_monitor
+  COMMENT = 'Example warehouse for demonstration purposes';

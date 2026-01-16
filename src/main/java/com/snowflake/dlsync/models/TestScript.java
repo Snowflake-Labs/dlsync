@@ -8,8 +8,8 @@ public class TestScript extends Script {
     private Script mainScript;
     private TestQueryGenerator testQueryGenerator;
 
-    public TestScript(String scriptPath, String databaseName, String schemaName, String objectName, ScriptObjectType objectType, String content, Script mainScript) {
-        super(scriptPath, databaseName, schemaName, objectName, objectType, content);
+    public TestScript(String scriptPath, String objectName, ScriptObjectType objectType, String content, Script mainScript) {
+        super(scriptPath, objectName, objectType, content);
         this.mainScript = mainScript;
         this.testQueryGenerator = new TestQueryGenerator(this);
     }
@@ -25,5 +25,15 @@ public class TestScript extends Script {
     @Override
     public String getId() {
         return mainScript.getId() + "_TEST";
+    }
+
+    @Override
+    public String getFullObjectName() {
+        return mainScript.getFullObjectName() + "_TEST";
+    }
+
+    @Override
+    public String resolveObjectReference(String partialName) {
+        return mainScript.resolveObjectReference(partialName);
     }
 }

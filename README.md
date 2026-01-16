@@ -6,14 +6,12 @@
 [![release](https://img.shields.io/github/release/Snowflake-Labs/dlsync.svg?style=flat)](https://github.com/Snowflake-Labs/dlsync/releases/latest)
 ---
 ## Overview
-DLSync is a database change management tool designed to streamline the development and deployment of snowflake changes. 
-By associating each database object(view, table, udf ...) with a corresponding SQL script file, DLSync tracks every modification, ensuring efficient and accurate updates.
+DLSync is a database change management tool designed to streamline the development and deployment of Snowflake changes. 
+By associating each database object (view, table, UDF, etc.) with a corresponding SQL script file, DLSync tracks every modification, ensuring efficient and accurate updates.
 Each script can also have a corresponding test script that can be used to write unit tests for the database object. 
-. DLSync keeps track of what changes have been deployed to database 
-by using hash. Hence, DLSync is capable of identifying what scripts have changed in the current deployment.
-Using this DLSync only deploys changed script to database objects.
-DLSync also understands interdependency between different scripts, thus applies these changes
-according their dependency.
+DLSync keeps track of what changes have been deployed to the database by using a hash. Hence, DLSync is capable of identifying what scripts have changed in the current deployment.
+Because of this, DLSync only deploys changed scripts to database objects.
+DLSync also understands interdependencies between different scripts, thus applying these changes according to their dependencies.
 
 ## Table of Contents
 
@@ -21,7 +19,7 @@ according their dependency.
 1. [Key Features](#key-features)
 1. [Project structure](#project-structure)
    1. [Script content](#script-content)
-      1. [State Script](#1-state-script)
+      1. [Declarative Script](#1-declarative-script)
       1. [Migration Script](#2-migration-script)
       1. [Test Script](#3-test-script)
    1. [Configurations](#configurations)
@@ -33,30 +31,48 @@ according their dependency.
       1. [Rollback](#rollback)
       1. [Verify](#verify)
       1. [Create script](#create-script)
-1. [Tables used by this tool](#tables-used-by-this-tool)
+1. [Required Privileges](#required-privileges)
+   1. [Warehouse & Database Access](#warehouse--database-access)
+   1. [DLSync Schema (Metadata Tracking)](#dlsync-schema-metadata-tracking)
+   1. [Database-Level Objects](#database-level-objects)
+   1. [Account-Level Objects](#account-level-objects)
+1. [DLSync Metadata Tables](#dlsync-metadata-tables)
    1. [dl_sync_script_history](#dl_sync_script_history)
    1. [dl_sync_change_sync](#dl_sync_change_sync)
    1. [dl_sync_script_event](#dl_sync_script_event)
 1. [Example scripts](#example-scripts)
 
 ## Key Features 
-- Hybrid Change Management: It combines state based and migration based change management to manage database changes
-- Unique Script per object: Each object will have it's corresponding unique Script file where we can define the change to the object
-- Unit Testing: It supports unit testing where we can write test scripts for each database object.
-- Change detection: It can detect change between previous deployment and current script state.
-- Dependency resolution: It can reorder scripts based on their dependency before deploying to database.
-- Parametrization: It supports parametrization of scripts where we can define variables that change between different database instances. Each instance is associated with parameter config file, where each parameter config lists the variables and their value for that instance. 
-- Rollback: It supports rollback to previous deployment state. Rollback is very simple and intuitive. Only one needs to rollback git repository of the script and triggering rollback module.
-- Verification: It supports verify module where each database object is checked with current script to check for deployment verification or tracking out of sync database changes.
-- Script creation: It supports create script where we can create script file for each database objects.
+- Hybrid Change Management: It combines declarative and migration based change management to manage database changes
+- Account-Level and Database-Level Objects: DLSync supports both account-level objects (databases, schemas, roles, warehouses, security integrations, etc.) and database-level objects (views, tables, functions, procedures, etc.)
+- Unique Script per Object: Each object has a corresponding unique script file where you can define changes to the object
+- Unit Testing: It supports unit testing where you can write test scripts for each database object
+- Change Detection: It can detect changes between the previous deployment and the current script state
+- Dependency Resolution: It can reorder scripts based on their dependencies before deploying to the database
+- Parametrization: It supports parametrization of scripts where you can define variables that change between different database instances. Each instance is associated with a parameter config file that lists the variables and their values for that instance
+- Rollback: It supports rollback to the previous deployment state. Rollback is simple and intuitive. Only one needs to rollback the git repository of the scripts and trigger the rollback module
+- Verification: It supports a verify module where each database object is checked against the current script to verify deployment or track out-of-sync database changes
+- Script Creation: It supports creating script files for existing database objects
 
 ## Project structure
-To use this tool first create your script root directory.
+To use this tool, first create your script root directory.
 This directory will contain all scripts and configurations.
-Inside this directory create a directory structure like:
+Inside this directory, create a directory structure like this:
 ```
 /script-root                                        # Root directory for the scripts
 ├── /main                                           # Main scripts for deployment 
+│   ├── /ACCOUNT                                    # Account-level objects (databases, schemas, roles, warehouses)
+│   │   ├── /DATABASES                              # Database definitions
+│   │   │   ├── database_name_1.sql                 # Database creation script
+│   │   │   ├── database_name_2.sql                 # Database creation script
+│   │   ├── /SCHEMAS                                # Schema definitions
+│   │   │   ├── database_name_1.schema_name_1.sql   # Schema creation script (database.schema format)
+│   │   │   ├── database_name_2.schema_name_2.sql   # Schema creation script (database.schema format)
+│   │   ├── /ROLES                                  # Role definitions
+│   │   │   ├── role_name_1.sql                     # Role creation script
+│   │   │   ├── role_name_2.sql                     # Role creation script
+│   │   ├── /WAREHOUSES                             # Warehouse definitions
+│   │   │   ├── warehouse_name.sql                  # Warehouse creation script
 │   ├── /database_name_1                            # Database name 
 │   │   ├── /schema_name_1                          # database Schema name
 │   │   │   ├── /[object_type]_1                    # Database Object type like (VIEWS, FUNCTIONS, TABLES ...)
@@ -89,6 +105,12 @@ Inside this directory create a directory structure like:
 ```
 
 Where 
+- **ACCOUNT:** is a special directory for account-level objects that are not scoped to a specific database or schema. This includes:
+  - **DATABASES:** Database creation and modification scripts
+  - **SCHEMAS:** Schema creation and modification scripts (filenames should be in format `database_name.schema_name.sql`)
+  - **ROLES:** Role creation and management scripts
+  - **WAREHOUSES:** Warehouse creation and configuration scripts
+  - Other account-level objects (users, resource monitors, integrations, etc.)
 - **database_name_*:** is the database name of your project, 
 - **schema_name_*:** are schemas inside the database, 
 - **object_type:** is type of the object only 1 of the following (VIEWS, FUNCTIONS, PROCEDURES, FILE_FORMATS, TABLES, SEQUENCES, STAGES, STREAMS, TASKS, STREAMLITS, PIPES, ALERTS, DYNAMIC_TABLES, MASKING_POLICIES),
@@ -100,30 +122,45 @@ These property files should have names in the above format by replacing "format"
 where profile is the instance name of your database. you will provide the profile name in environment variable while running this tool.
 
 ### Script content
-Each object will have a single SQL to track the changes applied to the given object. The SQL file is named using the object's name. 
-For example if you have a view named `SAMPLE_VIEW` in schema `MY_SCHEMA` in database `MY_DATABASE`, then the script file should be named `SAMPLE_VIEW.SQL` and should be placed in the directory `[scripts_root]/main/MY_DATABASE/MY_SCHEMA/VIEWS/SAMPLE_VIEW.SQL`.
-The structure and content of the scripts will defer based on the type of script. This tool categorizes script in to 2 types named State script and Migration script.
-#### 1. State Script
-This type of script is used for object types of VIEWS, UDF, PROCEDURES, FILE FORMATS, PIPES AND MASKING POLICIES.
-In this type of script you define the current state(desired state) of the object.
-When a change is made to the script, DLSync replaces the current object with the updated definition. 
-These types of scripts must always have `create or replace` statement. Every time you make a change to the script DLSync will replace the object with the new definition.
+Each object will have a single SQL file to track the changes applied to that object. The SQL file is named using the object's name. 
+For example, if you have a view named `SAMPLE_VIEW` in schema `MY_SCHEMA` in database `MY_DATABASE`, then the script file should be named `SAMPLE_VIEW.SQL` and should be placed in the directory `[scripts_root]/main/MY_DATABASE/MY_SCHEMA/VIEWS/SAMPLE_VIEW.SQL`.
 
-The sql file should be named with the database object name. 
-The State script file should adhere to the following rules
-1. The file name should match database object name referenced by the `create or replace` statement.
+**Account-level objects** (such as databases, roles, warehouses, security integrations, etc.) are placed directly in the `/ACCOUNT` directory. For example, a database creation script should be placed in `[scripts_root]/main/ACCOUNT/DATABASES/DATABASE_NAME.SQL` and a role creation script in `[scripts_root]/main/ACCOUNT/ROLES/ROLE_NAME.SQL`.
+
+> **Note:** Schema object filenames should include the database name in the format `database_name.schema_name.sql`. For example, a schema named `MY_SCHEMA` in database `MY_DATABASE` should be placed in `[scripts_root]/main/ACCOUNT/SCHEMAS/MY_DATABASE.MY_SCHEMA.SQL`. This ensures the schema name is properly extracted and associated with its parent database.
+
+The structure and content of the scripts differ based on the type of script. This tool categorizes scripts into 2 types: Declarative scripts and Migration scripts.
+#### 1. Declarative Script
+This type of script is used for object types of VIEWS, FUNCTIONS, PROCEDURES, FILE_FORMATS, PIPES, MASKING_POLICIES, STREAMLITS, RESOURCE_MONITORS, NETWORK_POLICIES, SESSION_POLICIES, PASSWORD_POLICIES, AUTHENTICATION_POLICIES, API_INTEGRATIONS, NOTIFICATION_INTEGRATIONS, SECURITY_INTEGRATIONS, STORAGE_INTEGRATIONS, and WAREHOUSES.
+In this type of script, you define the current state (desired state) of the object.
+When a change is made to the script, DLSync replaces the current object with the updated definition. 
+These types of scripts must always have a `create or replace` statement. Every time you make a change to the script, DLSync will replace the object with the new definition.
+
+The SQL file should be named with the database object name. 
+The Declarative script file should adhere to the following rules:
+1. The file name should match the database object name referenced by the `create or replace` statement.
 2. The file should contain only one SQL DDL script that creates and replaces the specified object.
-3. The create script should refer the object with its full qualified name (database.schema.object_name)
+3. For database-level objects, the create script should refer to the object with its fully qualified name (database.schema.object_name)
+4. For account-level objects, use the fully qualified name without database scope (e.g., just the object name for databases, roles, and warehouses)
+
+> **Note:** If the object name in the SQL script is parametrized (e.g., `SAMPLE_${TENANT}_VIEW`), the file name should also use the same parameter syntax (e.g., `SAMPLE_${TENANT}_VIEW.SQL`). This allows DLSync to correctly match the physical file with the parametrized object name during deployment across different environments.
 
 eg: view named SAMPLE_VIEW can have the following SQL statement in the `SAMPLE_VIEW.SQL` file.
 ```
-create or replace view ${MY_DB}.{MY_SCHEMA}.SAMPLE_VIEW as select * from ${MY_DB}.{MY_SECOND_SCHEMA}.MY_TABLE;
+create or replace view ${MY_DB}.${MY_SCHEMA}.SAMPLE_VIEW as select * from ${MY_DB}.${MY_SECOND_SCHEMA}.MY_TABLE;
+```
+
+eg: account-level database named MY_DATABASE can have the following SQL statement in the `MY_DATABASE.SQL` file.
+```
+create or replace database MY_DATABASE;
 ```
 #### 2. Migration Script
-This type of script is used for object types of TABLES, SEQUENCES, STAGES, STREAMS, TASKS, ALERTS and DYNAMIC_TABLES.
-Here the script is treated as migration that will be applied to the object sequentially based on the version number. 
-This type of script contains 1 or more migration versions. One migration versions contains version number, author(optional), content (DDL or DML SQL statement) , rollback statement(optional) and verify statement(optional).
-Each migration version is immutable i.e Once the version is deployed you can not change the code of this version. Only you can add new versions.
+This type of script is used for object types of TABLES, SEQUENCES, STAGES, STREAMS, TASKS, ALERTS, DYNAMIC_TABLES and account-level objects like DATABASES, SCHEMAS, and ROLES.
+Here the script is treated as a migration that will be applied to the object sequentially based on the version number. 
+This type of script contains 1 or more migration versions. Each migration version contains a version number, author (optional), content (DDL or DML SQL statement), rollback statement (optional), and verify statement (optional).
+Each migration version is immutable—once the version is deployed, you cannot change the code of this version. You can only add new versions.
+
+> **Note:** If the object name in the SQL script is parametrized (e.g., `${MY_SCHEMA}`), the file name should also use the same parameter syntax (e.g., `${MY_SCHEMA}.SQL`). This allows DLSync to correctly match the physical file with the parametrized object name during deployment across different environments.
 
 eg: for the table named `SAMPLE_TABLE` you can have the following SQL statement in the `SAMPLE_TABLE.SQL` file.:
 ```
@@ -143,6 +180,21 @@ alter table ${MY_DB}.{MY_SCHEMA}.SAMPLE_TABLE add column my_new_column varchar;
 ---verify: select my_new_column from ${MY_DB}.{MY_SCHEMA}.SAMPLE_TABLE limit 1;
 ```
 
+eg: for the account-level role named `ANALYST` you can have the following SQL statement in the `ANALYST.SQL` file.:
+```
+---version: 0, author: admin
+create or replace role ANALYST;
+---rollback: drop role if exists ANALYST;
+
+---version: 1, author: admin
+grant role ANALYST to role ACCOUNTADMIN;
+---rollback: revoke role ANALYST from role ACCOUNTADMIN;
+
+---version: 2, author: admin
+grant create database on account to role ANALYST;
+---rollback: revoke create database on account from role ANALYST;
+```
+
 The migration script will have the following format:
 ```
 ---version: VERSION_NUMBER, author: NAME
@@ -158,24 +210,24 @@ where
 - ```VERIFY_CONTENT``` is the script that verifies the changes made by the migration script.
 
 The migration script should adhere to the following rules:
-1. Each change to database object should be wrapped in a migration format specified above.
-2. Each migration version should contain migration header (version and author) and the content of the migration(single DDL or DML script), rollback(optional) and verify (optional).
-3. migration header should start in a new line with three hyphens(---) and can contain only version and author.
-4. Version should be unique number per each script file and should be in incremental order. And it is used to order the scripts migration sequence for that object.
-5. author is optional alphanumeric characters used for informational purpose only to track who added the changes.
-6. Content of the change (migration) should be specified after migration header in a new line. And it can span multiple lines.
-7. Content should always be terminated by semi-colon (`;`). 
-8. Rollback if specified should start in a new line with `---rollback: `. The rollback script should be on a single line and must be terminated with semi-colon (;);
-9. Verify if specified should start in a new line with `---verify:`. The verify script should be on a single line and must be terminated with semi-colon (;);
+1. Each change to a database object should be wrapped in a migration format specified above.
+2. Each migration version should contain a migration header (version and author) and the content of the migration (single DDL or DML script), rollback (optional), and verify (optional).
+3. The migration header should start on a new line with three hyphens (---) and can contain only version and author.
+4. The version should be a unique number per script file and should be in incremental order. It is used to order the scripts' migration sequence for that object.
+5. The author is optional alphanumeric characters used for informational purposes only to track who added the changes.
+6. The content of the change (migration) should be specified after the migration header on a new line. It can span multiple lines.
+7. Content should always be terminated by a semicolon (`;`). 
+8. If rollback is specified, it should start on a new line with `---rollback: `. The rollback script should be on a single line and must be terminated with a semicolon (;).
+9. If verify is specified, it should start on a new line with `---verify:`. The verify script should be on a single line and must be terminated with a semicolon (;).
 10. Migration versions are immutable. Once a version is deployed, it cannot be changed. Only new versions can be added or existing versions can be rolled back.
 
 #### 3. Test Script
-This type of script is used write unit test for your scripts. You can write and execute unit tests for your database objects using this tool.
+This type of script is used to write unit tests for your scripts. You can write and execute unit tests for your database objects using this tool.
 Unit testing in DLSync allows you to validate the correctness of your database objects, such as views and UDFs, by writing test scripts. 
-Writing unit tests follows 3-step process:
-- mock your table dependencies using CTE by putting the table name as the CTE name.
-- Add expected data in the CTE, by putting `EXPECTED_DATA` as CTE name.
-- Add the query to refer to the database object with select statement.
+Writing unit tests follows a 3-step process:
+- Mock your table dependencies using CTE by putting the table name as the CTE name.
+- Add expected data in the CTE by putting `EXPECTED_DATA` as the CTE name.
+- Add the query to refer to the database object with a select statement.
 For example, if you have a view named `SAMPLE_VIEW`  with the following content:
 ```
 create or replace view ${MY_DB}.{MY_SCHEMA}.SAMPLE_VIEW as 
@@ -249,9 +301,9 @@ The test script should adhere to the following rules:
 8. At the end of the test script you should have a select statement to select the actual data from the database object.
 ### Configurations
 #### Parameter profile
-Parameter files help you define parameters that change between different database instances. This is helpful if you have variables that change between different instances (like dev, staging and prod). 
-Parameter files are defined per each instance. Parameter file are basically property files where you define parameter and their values. 
-the parameter files should be placed in the root script directory and should be named in the following format:
+Parameter files help you define parameters that change between different database instances. This is helpful if you have variables that change between different instances (like dev, staging, and prod). 
+Parameter files are defined per each instance. Parameter files are basically property files where you define parameters and their values. 
+The parameter files should be placed in the root script directory and should be named in the following format:
 ``` 
 parameter-[profile].property
 ```
@@ -301,7 +353,7 @@ The `dependencyOverride` is used to override the dependencies of the script file
 The `connection` is used to configure the connection to snowflake account. 
 **Warning: Please use the connection property for local development and experimenting. Since the config file is checked in to your git repo please avoid adding any connection information to your config file. You can provide the connection details in environment variables.**
 ### How to use this tool
-In order to run the application you need to provide the snowflake connection parameters in environment variables. The following environment variables are required to run the application:
+In order to run the application, you need to provide the Snowflake connection parameters in environment variables. The following environment variables are required to run the application:
 ```
 account=my_account  #account used for connection
 db=database  #your database
@@ -318,7 +370,7 @@ JAVA_TOOL_OPTIONS ="-Dnet.snowflake.jdbc.enableBouncyCastle=true" # This must be
 
 You also need to provide the script root directory and which profile to use. This can be provided in the command line argument or in the environment variable.
 Providing in the command line argument will override the environment variable. 
-you can provide command line option using the following:
+You can provide command line options using the following:
 ```
 dlsync deploy --script-root path/to/db_scripts --profile dev
 ```
@@ -331,6 +383,7 @@ or you can provide in environment variable as:
 script_root=path/to/db_scripts
 profile=dev
 ```
+
 There are 4 main modules (commands). Each module of the tool can be triggered from the command line argument.
 #### Deploy
 This module is used to deploy the changes to the database. It will deploy the changes to the database objects based on the script files.
@@ -357,7 +410,7 @@ dlsync test -s path/to/db_scripts -p dev
 
 #### Rollback
 This module is used to rollback changes to the previous deployment. It will rollback the changes to the database objects based on the script files. This should be triggered after you have rolled back the git repository of the script files. 
-The rollback works first by identifying the changes between the current deployment and the previous deployment. For state scripts (views, udf, stored procedures and file formats) it will replace them with the current script(i.e previous version as you have already made git rollback). 
+The rollback works first by identifying the changes between the current deployment and the previous deployment. For declarative scripts (views, udf, stored procedures and file formats) it will replace them with the current script(i.e previous version as you have already made git rollback). 
 For migration scripts it will identify the versions need to be rolled back by checking the missing versions of current scripts but have been deployed previously. Then it will use the rollback script specified in the migration version to rollback the changes. 
 This will be stored in the script history table.
 To rollback the changes use the following command:
@@ -366,7 +419,7 @@ dlsync rollback -script-root path/to/db_scripts -profile dev
 
 ```
 #### Verify
-This module is used to verify the database scripts are in sync with the current database objects. For state scripts it will compare the content of script with the DDL of the database object. 
+This module is used to verify the database scripts are in sync with the current database objects. For declarative scripts it will compare the content of script with the DDL of the database object. 
 For Migration scripts it uses the verify script provided in the migration version. if the verify script throws error, then it will mark the migration version as out of sync. Since latest migration versions can change previous versions results, it only checks the latest migration version of each script for verification.
 To verify the changes use the following command:
 ```
@@ -382,19 +435,51 @@ You can also provide the list of schemas you want to create the script files for
 ```
 dlsync create_script --script-root path/to/db_scripts --profile uat --target-schemas schema1,schema2
 ```
+## Required Privileges
 
-## Tables used by this tool
-DLSync stores script meta data, deployment history and logs in the database.
+In order to successfully run DLSync, the Snowflake role provided in the connection configuration must have the appropriate privileges. The required privileges depend on the types of objects you are deploying.
+
+### Warehouse & Database Access
+- `GRANT USAGE ON WAREHOUSE <warehouse_name> TO ROLE MY_ROLE`: The role must have usage privileges on the specified warehouse to execute SQL statements.
+- `GRANT USAGE ON DATABASE <database_name> TO ROLE MY_ROLE`: The role must have usage privileges on the specified database to access its objects.
+- `GRANT USAGE ON SCHEMA <database_name.schema_name> TO ROLE MY_ROLE`: The role must have usage privileges on the specified schema to access its objects.
+
+### DLSync Schema (Metadata Tracking)
+The role must have privileges to create and manage DLSync tracking tables in the designated schema:
+- `GRANT CREATE TABLE ON SCHEMA <schema_name> TO ROLE MY_ROLE` **CREATE TABLE** on the DLSync schema
+> **Note:** the database and schema specified in the connection will be used to store the DLSync tracking tables.
+
+### Database-Level Objects
+For managing database-level objects (VIEWS, FUNCTIONS, PROCEDURES, TABLES, SEQUENCES, STAGES, STREAMS, TASKS, ALERTS, DYNAMIC_TABLES, FILE_FORMATS, PIPES, MASKING_POLICIES), the role must have:
+- **USAGE** on the target schema
+- **CREATE** privileges for the specific object types being deployed (CREATE VIEW, CREATE FUNCTION, CREATE TABLE, etc.)
+- **ALTER** privileges on existing objects in the schema
+- **SELECT** privileges on tables (for queries and verification)
+
+### Account-Level Objects
+For managing account-level objects, the role must have:
+- **CREATE DATABASE** (for DATABASES)
+- **CREATE SCHEMA** on the target database (for SCHEMAS)
+- **CREATE ROLE** and **MANAGE GRANTS** (for ROLES)
+- **CREATE WAREHOUSE** (for WAREHOUSES)
+- **CREATE INTEGRATION** (for SECURITY_INTEGRATIONS, STORAGE_INTEGRATIONS, NOTIFICATION_INTEGRATIONS, API_INTEGRATIONS)
+- **CREATE RESOURCE MONITOR** (for RESOURCE_MONITORS)
+- **CREATE NETWORK POLICY** (for NETWORK_POLICIES)
+- **CREATE SESSION POLICY** (for SESSION_POLICIES)
+- **CREATE PASSWORD POLICY** (for PASSWORD_POLICIES)
+- **CREATE AUTHENTICATION POLICY** (for AUTHENTICATION_POLICIES)
+
+## DLSync Metadata Tables
+DLSync stores script metadata, deployment history, and logs in the database.
 DLSync will depend on these tables to track the changes and deployment history. If these tables are missing from the schema and database provided in the connection parameter, then DLSync will create these tables. 
 Please make sure the role provided in the connection has the necessary privileges to create tables in the schema. 
 
-**_N.B: Since DLSync uses these tables to track the changes, it is recommended not to delete or change these tables. It is also import not change the schema of the connection. If DLSync is not able to find these tables in the schema, it will create them and assume as if it is running first time._**
+**_N.B: Since DLSync uses these tables to track the changes, it is recommended not to delete or change these tables. It is also important not to change the schema of the connection. If DLSync is not able to find these tables in the schema, it will create them and assume it is running for the first time._**
 
-This tool uses the following tables to store important information:
 ### dl_sync_script_history
-This table store the meta data for script files. It contains the following columns:
+This table stores the metadata for script files. It contains the following columns:
 ```
-script_id: # for state script the script name, for migration script script name plus the version number
+script_id: # for declarative script the script name, for migration script script name plus the version number
 object_name: the object name of the script
 object_type: the type of the object (VIEWS, FUNCTIONS, PROCEDURES, FILE_FORMATS, TABLES, SEQUENCES, STAGES, STREAMS, TASKS)
 rollback_script: the rollback script for the migration version
@@ -432,4 +517,4 @@ created_by: the db user who added this change
 created_ts: the timestamp when was this change added
 ```
 ## Example scripts
-To explore the tool you can use the example scripts provided in the directory `example_scripts` .
+To explore the tool, you can use the example scripts provided in the `example_scripts` directory.

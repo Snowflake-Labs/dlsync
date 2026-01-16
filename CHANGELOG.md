@@ -1,6 +1,9 @@
 # DLSync Changelog
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [3.0.0] - 2026-01-15
+### Added
+- Added support for account level objects like database, schemas, roles, warehouses etc.
 ## [2.6.1] - 2026-01-06
 ### Fixed
 - Fixed private key authentication issue with parameter names

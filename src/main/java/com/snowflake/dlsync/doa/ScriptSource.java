@@ -11,9 +11,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -21,6 +19,7 @@ public class ScriptSource {
     private String scriptRoot;
     private String mainScriptDir;
     private String testScriptDir;
+    private final String accountDir = "ACCOUNT";
 
     public ScriptSource(String scriptRoot) {
         this.scriptRoot = scriptRoot;
@@ -35,7 +34,7 @@ public class ScriptSource {
         if(scriptFiles.exists()) {
             File[] allDbs = scriptFiles.listFiles();
             for(File file: allDbs) {
-                if(file.isDirectory()) {
+                if(file.isDirectory() && !file.getName().equalsIgnoreCase(accountDir)) {
                     dbs.add(file.getName());
                 }
             }
@@ -63,32 +62,60 @@ public class ScriptSource {
     }
 
     public List<Script> getAllScripts() throws IOException {
+        return getAllFileScripts()
+                .stream()
+                .flatMap(script -> {
+                    if (script.isMigration() && script.getMigrations() != null) {
+                        return script.getMigrations().stream();
+                    } else {
+                        return List.of(script).stream();
+                    }
+                }).collect(Collectors.toList());
+    }
+
+    public List<Script> getAllFileScripts() throws IOException {
         List<Script> allScripts = new ArrayList<>();
+        List<AccountScript> accountScripts = getScriptsInAccount();
         for(String database: readDatabase()) {
             for(String schema: readSchemas(database)) {
                 allScripts.addAll(getScriptsInSchema(database, schema));
             }
         }
+        allScripts.addAll(accountScripts);
         return allScripts;
     }
 
-    public List<TestScript> getTestScripts(List<Script> scripts) throws IOException {
-            List<TestScript> testScripts = scripts.stream()
-                    .map(script -> {
-                        try {
-                            return getTestScript(script);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    })
-                    .filter(testScript -> testScript != null)
-                    .collect(Collectors.toList());
-            return testScripts;
+    public List<AccountScript> getScriptsInAccount() throws IOException {
+        List<AccountScript> allScripts = new ArrayList<>();
+        log.info("Reading all Account objects from {}", accountDir);
+        File accountFile = Path.of(mainScriptDir, accountDir).toFile();
+        if(!accountFile.exists()) {
+            return allScripts;
+        }
+        File[] scriptTypeDirectories = accountFile.listFiles();
+        for(File scriptType: scriptTypeDirectories) {
+            if(scriptType.isDirectory() ) {
+                File[] scriptFiles = scriptType.listFiles();
+                for(File file: scriptFiles) {
+                    if(file.getName().toLowerCase().endsWith(".sql")){
+                        AccountScript scriptFromFile = SqlTokenizer.parseAccountScript(file.getPath(), file.getName(), scriptType.getName(), Files.readString(file.toPath()));
+                        allScripts.add(scriptFromFile);
+                    }
+                    else {
+                        log.warn("Script Skipped, File not SQL: {} ", file.getName());
+                    }
+                }
+            }
+            else {
+                log.warn("Script file found outside object type directory: {} ", scriptType.getName());
+            }
+        }
+        return allScripts;
     }
 
-    public List<Script> getScriptsInSchema(String database, String schema) throws IOException {
+    public List<SchemaScript> getScriptsInSchema(String database, String schema) throws IOException {
         log.info("Reading script files from schema: {}", schema);
-        List<Script> scripts = new ArrayList<>();
+        List<SchemaScript> scripts = new ArrayList<>();
         File schemaDirectory = Path.of(mainScriptDir, database, schema).toFile();
         File[] scriptTypeDirectories = schemaDirectory.listFiles();
 
@@ -97,8 +124,8 @@ public class ScriptSource {
                 File[] scriptFiles = scriptType.listFiles();
                 for(File file: scriptFiles) {
                     if(file.getName().toLowerCase().endsWith(".sql")){
-                       Set<Script> scriptsFromFile = SqlTokenizer.parseScript(file.getPath(), file.getName(), scriptType.getName(), Files.readString(file.toPath()));
-                       scripts.addAll(scriptsFromFile);
+                       SchemaScript scriptFromFile = SqlTokenizer.parseSchemaScript(file.getPath(), file.getName(), scriptType.getName(), Files.readString(file.toPath()));
+                       scripts.add(scriptFromFile);
                     }
                     else {
                         log.warn("Script Skipped, File not SQL: {} ", file.getName());
@@ -112,42 +139,19 @@ public class ScriptSource {
         return scripts;
     }
 
-    public Set<Script> buildScriptFromFile(File file, File scriptType) throws IOException {
-        String content = Files.readString(file.toPath());
-        String objectName = SqlTokenizer.extractObjectName(file.getName(), content);
-        ScriptObjectType objectType = ScriptObjectType.valueOf(scriptType.getName());
-        String fullIdentifier = SqlTokenizer.getFirstFullIdentifier(objectName, content);
-        if(fullIdentifier == null || fullIdentifier.isEmpty()) {
-            log.error("Error reading script: {}, name and content mismatch", file.getName());
-            throw new RuntimeException("Object name and file name must match!");
-        }
-        String database = SqlTokenizer.extractDatabaseName(fullIdentifier);
-        String schema = SqlTokenizer.extractSchemaName(fullIdentifier);
-        if(database == null || schema == null) {
-            log.error("Error reading script: {}, database or schema not specified", file.getName());
-            throw new RuntimeException("Database, schema and object name must be provided in the script file.");
-        }
-        Set<Script> scripts = new HashSet<>();
-        if(objectType.isMigration()) {
-            List<Migration> migrations = SqlTokenizer.parseMigrationScripts(content);
-            for(Migration migration: migrations) {
-                MigrationScript script = ScriptFactory.getMigrationScript(database, schema, objectType, objectName, migration);
-//                Script script = new Script(database, schema, objectType, objectName, migration.getContent(), migration.getVersion(), migration.getAuthor(), migration.getRollback());
-                if(scripts.contains(script)) {
-                    log.error("Duplicate version {} for script {} found.", script.getVersion(), script);
-                    throw new RuntimeException("Duplicate version number is not allowed in the same script file.");
-                }
-                scripts.add(script);
-            }
-        }
-        else {
-            Script script = ScriptFactory.getStateScript(file.getPath(), database, schema, objectType, objectName, content);
-//            Script script = new Script(database, schema, objectType, objectName, content);
-            scripts.add(script);
-        }
-        return scripts;
+    public List<TestScript> getTestScripts(List<Script> scripts) throws IOException {
+        List<TestScript> testScripts = scripts.stream()
+                .map(script -> {
+                    try {
+                        return getTestScript(script);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .filter(testScript -> testScript != null)
+                .collect(Collectors.toList());
+        return testScripts;
     }
-
 
     public TestScript getTestScript(Script script) throws IOException {
         String objectName = script.getObjectName() + "_TEST";
@@ -157,21 +161,21 @@ public class ScriptSource {
         if(file.exists()) {
             log.info("Test script file found: {}", file.getPath());
             String content = Files.readString(file.toPath());
-            TestScript testScript = ScriptFactory.getTestScript(file.getPath(), script.getDatabaseName(), script.getSchemaName(), script.getObjectType(), objectName, content, script);
+            TestScript testScript = ScriptFactory.getTestScript(file.getPath(), objectName, content, script);
             return testScript;
         }
         return null;
 
     }
 
-    public void createScriptFiles(List<Script> scripts) {
+    public void createSchemaScriptFiles(List<SchemaScript> scripts) {
         log.debug("Creating script files for the scripts: {}", scripts);
-        for(Script script: scripts) {
-            createScriptFile(script);
+        for(SchemaScript script: scripts) {
+            createSchemaScriptFile(script);
         }
     }
 
-    public void createScriptFile(Script script) {
+    public void createSchemaScriptFile(SchemaScript script) {
         try {
             String scriptFileName = script.getObjectName() + ".SQL";
             String scriptDirectoryPath = String.format("%s/%s/%s/%s", mainScriptDir, script.getDatabaseName(), script.getSchemaName(), script.getObjectType());
@@ -183,6 +187,29 @@ public class ScriptSource {
             log.debug("File {} created successfully", Path.of(scriptDirectoryPath,  scriptFileName));
         } catch (IOException e) {
             log.error("Error in creating script: {}", e.getMessage());
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void createAccountScriptFiles(List<AccountScript> scripts) {
+        log.debug("Creating script files for the account scripts: {}", scripts);
+        for(AccountScript script: scripts) {
+            createAccountScriptFile(script);
+        }
+    }
+
+    public void createAccountScriptFile(AccountScript script) {
+        try {
+            String scriptFileName = script.getObjectName() + ".SQL";
+            String scriptDirectoryPath = String.format("%s/%s/%s", mainScriptDir, accountDir, script.getObjectType());
+            File directory = new File(scriptDirectoryPath);
+            directory.mkdirs();
+            FileWriter fileWriter = new FileWriter(Path.of(scriptDirectoryPath,  scriptFileName).toFile());
+            fileWriter.write(script.getContent());
+            fileWriter.close();
+            log.debug("File {} created successfully", Path.of(scriptDirectoryPath,  scriptFileName));
+        } catch (IOException e) {
+            log.error("Error in creating account script: {}", e.getMessage());
             throw new RuntimeException(e);
         }
     }

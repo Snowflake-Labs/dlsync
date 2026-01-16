@@ -1,6 +1,7 @@
 package com.snowflake.dlsync.parser;
 
 import com.snowflake.dlsync.models.MigrationScript;
+import com.snowflake.dlsync.models.SchemaScript;
 import com.snowflake.dlsync.models.Script;
 import lombok.extern.slf4j.Slf4j;
 
@@ -79,8 +80,13 @@ public class ParameterInjector {
 
     public void parameterizeObjectName(Script script) {
 //        String objectName = script.getObjectName();
-        String schemaName = script.getSchemaName();
-        String databaseName = script.getDatabaseName();
+
+        String schemaName = "";
+        String databaseName = "";
+        if(script instanceof SchemaScript) {
+            schemaName = ((SchemaScript) script).getSchemaName();
+            databaseName = ((SchemaScript) script).getDatabaseName();
+        }
 
         List<String> parameterKeys = parameters.stringPropertyNames().stream().sorted().collect(Collectors.toList());
         for(String parameter: parameterKeys) {
@@ -94,8 +100,11 @@ public class ParameterInjector {
 
         String oldName = script.getFullObjectName();
 //        script.setObjectName(objectName);
-        script.setSchemaName(schemaName);
-        script.setDatabaseName(databaseName);
+        if (script instanceof SchemaScript) {
+            ((SchemaScript) script).setSchemaName(schemaName);
+            ((SchemaScript) script).setDatabaseName(databaseName);
+        }
+
         log.debug("Parametrize object name Changed from {} to {}", oldName, script.getFullObjectName());
     }
 

@@ -5,15 +5,14 @@ import com.snowflake.dlsync.doa.ScriptRepo;
 import com.snowflake.dlsync.doa.ScriptSource;
 import com.snowflake.dlsync.models.*;
 import com.snowflake.dlsync.parser.ParameterInjector;
-import com.snowflake.dlsync.parser.TestQueryGenerator;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.*;
 import java.security.NoSuchAlgorithmException;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Slf4j
 public class ChangeManager {
@@ -92,7 +91,7 @@ public class ChangeManager {
         startSync(ChangeType.ROLLBACK);
         Set<String> deployedScriptIds = new HashSet<>(scriptRepo.loadScriptHash());
         scriptSource.getAllScripts().forEach(script -> deployedScriptIds.remove(script.getId()));
-        List<MigrationScript> migrations = scriptRepo.getMigrationScripts(deployedScriptIds);
+        List<MigrationScript> migrations = scriptRepo.getDeployedMigrationScripts(deployedScriptIds);
         dependencyGraph.addNodes(migrations);
 
         List<Script> changedScripts = scriptSource.getAllScripts()
@@ -135,12 +134,13 @@ public class ChangeManager {
 
         List<String> schemaNames = scriptRepo.getAllSchemasInDatabase(scriptRepo.getDatabaseName());
         for(String schema: schemaNames) {
-            List<Script> stateScripts = scriptRepo.getStateScriptsInSchema(schema)
+            List<SchemaScript> declarativeScripts = scriptRepo.getAllScriptsInSchema(schema)
                     .stream()
+                    .filter(script -> !script.isMigration())
                     .filter(script -> !config.isScriptExcluded(script))
                     .collect(Collectors.toList());
 
-            for(Script script: stateScripts) {
+            for(SchemaScript script: declarativeScripts) {
                 parameterInjector.parametrizeScript(script, true);
                 Script sourceScript = sourceScripts.stream().filter(s -> s.equals(script)).findFirst().orElse(null);
                 if(sourceScript == null) {
@@ -160,7 +160,7 @@ public class ChangeManager {
         Map<String, List<MigrationScript>> groupedMigrationScripts = sourceScripts.stream()
                 .filter(script -> script instanceof MigrationScript)
                 .map(script -> (MigrationScript)script)
-                .collect(Collectors.groupingBy(Script::getObjectName));
+                .collect(Collectors.groupingBy(MigrationScript::getFullObjectName));
 
         for(String objectName: groupedMigrationScripts.keySet()) {
             List<MigrationScript> sameObjectMigrations = groupedMigrationScripts.get(objectName);
@@ -204,15 +204,15 @@ public class ChangeManager {
         }
         int count = 0;
         for(String schema: schemaNames) {
-            List<Script> scripts = scriptRepo.getAllScriptsInSchema(schema);
-            for(Script script: scripts) {
+            List<SchemaScript> scripts = scriptRepo.getAllScriptsInSchema(schema);
+            for(SchemaScript script: scripts) {
                 count++;
                 if(configTables.contains(script.getFullObjectName())) {
                     scriptRepo.addConfig(script);
                 }
                 parameterInjector.parametrizeScript(script, false);
             }
-            scriptSource.createScriptFiles(scripts);
+            scriptSource.createSchemaScriptFiles(scripts);
         }
         endSyncSuccess(ChangeType.CREATE_SCRIPT, (long)count);
 

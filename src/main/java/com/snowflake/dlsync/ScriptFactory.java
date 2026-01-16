@@ -3,25 +3,34 @@ package com.snowflake.dlsync;
 import com.snowflake.dlsync.models.*;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Slf4j
 public class ScriptFactory {
-    public static StateScript getStateScript(String databaseName, String schemaName, ScriptObjectType objectType, String objectName, String content) {
-        return new StateScript(databaseName, schemaName, objectName, objectType, content);
+
+    public static AccountScript getAccountScript(String scriptPath, ScriptObjectType objectType, String objectName, String content) {
+        return new AccountScript(scriptPath, objectName, objectType, content);
     }
 
-    public static StateScript getStateScript(String scriptPath, String databaseName, String schemaName, ScriptObjectType objectType, String objectName, String content) {
-        return new StateScript(scriptPath, databaseName, schemaName, objectName, objectType, content);
+    public static SchemaScript getSchemaScript(String scriptPath, String databaseName, String schemaName, ScriptObjectType objectType, String objectName, String content) {
+        return new SchemaScript(scriptPath, databaseName, schemaName, objectName, objectType, content);
     }
 
-    public static MigrationScript getMigrationScript(String scriptPath, String databaseName, String schemaName, ScriptObjectType objectType, String objectName, String content, Long version, String author, String rollback, String verify) {
-        return new MigrationScript(scriptPath, databaseName, schemaName, objectName, objectType, content, version, author, rollback, verify);
+    public static SchemaScript getSchemaScript(String databaseName, String schemaName, ScriptObjectType objectType, String objectName, String content) {
+        return getSchemaScript(null, databaseName, schemaName, objectType, objectName, content);
     }
 
-    public static MigrationScript getMigrationScript(String databaseName, String schemaName, ScriptObjectType objectType, String objectName, String content, Long version, String author, String rollback, String verify) {
-        return new MigrationScript(databaseName, schemaName, objectName, objectType, content, version, author, rollback, verify);
+    public static MigrationScript getMigrationScript(Script parentScript, String content, Long version, String author, String rollback, String verify) {
+        return new MigrationScript(parentScript, content, version, author, rollback, verify);
     }
 
-    public static MigrationScript getMigrationScript(String fullObjectName, ScriptObjectType objectType, String content, Long version, String author, String rollback, String verify) {
+    public static MigrationScript getSchemaMigrationScript(String databaseName, String schemaName, ScriptObjectType objectType, String objectName, String content, Long version, String author, String rollback, String verify) {
+        SchemaScript schemaScript = getSchemaScript(databaseName, schemaName, objectType, objectName, content);
+        return new MigrationScript(schemaScript, content, version, author, rollback, verify);
+    }
+
+    public static MigrationScript getSchemaMigrationScript(String fullObjectName, ScriptObjectType objectType, String content, Long version, String author, String rollback, String verify) {
         String databaseName = null, schemaName = null, objectName = null;
         String[] nameSplit = fullObjectName.split("\\.");
         if(nameSplit.length > 2) {
@@ -33,28 +42,38 @@ public class ScriptFactory {
             log.error("Error while splitting fullObjectName {}: Missing some values", fullObjectName);
             throw new RuntimeException("Error while splitting fullObjectName");
         }
-        return new MigrationScript(databaseName, schemaName, objectName, objectType, content, version, author, rollback, verify);
-    }
-    public static MigrationScript getMigrationScript(String database, String schema, ScriptObjectType type, String objectName, String content) {
-        Long version = 0L;
-        String author = "DlSync";
-        String rollback = String.format("DROP %s IF EXISTS %s;", type.getSingular(), database + "." + schema + "." + objectName);
-        String verify = String.format("SHOW %s LIKE '%s';",type, database + "." + schema + "." + objectName);
+        return getSchemaMigrationScript(databaseName, schemaName, objectType, objectName, content, version, author, rollback, verify);
 
-        String migrationHeader = String.format("---version: %s, author: %s\n", version, author);
-        String rollbackFormat = String.format("\n---rollback: %s", rollback);
-        String verifyFormat = String.format("\n---verify: %s", verify);
-        content = migrationHeader + content + rollbackFormat + verifyFormat;
-        MigrationScript script = getMigrationScript(database, schema, type, objectName, content, version, author, rollback, verify);
-        return script;
     }
 
-    public static MigrationScript getMigrationScript(String databaseName, String schemaName, ScriptObjectType objectType, String objectName, Migration migration) {
-        return new MigrationScript(databaseName, schemaName, objectName, objectType, migration.getContent(), migration.getVersion(), migration.getAuthor(), migration.getRollback(), migration.getVerify());
+
+
+    public static MigrationScript getMigrationScript(Script parentScript, Migration migration) {
+        return new MigrationScript(parentScript, migration.getContent(), migration.getVersion(), migration.getAuthor(), migration.getRollback(), migration.getVerify());
     }
 
-    public static TestScript getTestScript(String scriptPath, String databaseName, String schemaName, ScriptObjectType objectType, String objectName, String content, Script script) {
-        return new TestScript(scriptPath, databaseName, schemaName, objectName, objectType, content, script);
+    public static List<MigrationScript> getMigrationScripts(Script parentScript, List<Migration> migrations) {
+        if(!parentScript.getObjectType().isMigration()) {
+            log.error("Script {} is not a migration script.", parentScript);
+            return null;
+        }
+        List<MigrationScript> migrationScripts = new ArrayList<>();
+        for(Migration migration: migrations) {
+            MigrationScript script = ScriptFactory.getMigrationScript(parentScript, migration);
+            if(migrationScripts.contains(script)) {
+                log.error("Duplicate version {} for script {} found.", script.getVersion(), script);
+                throw new RuntimeException("Duplicate version number is not allowed in the same script file.");
+            }
+            migrationScripts.add(script);
+        }
+        return migrationScripts;
     }
 
+    public static TestScript getTestScript(String scriptPath, String objectName, String content, Script mainScript) {
+        if (mainScript instanceof SchemaScript) {
+            SchemaScript schemaScript = (SchemaScript) mainScript;
+            return new TestScript(scriptPath, objectName, schemaScript.getObjectType(), content, schemaScript);
+        }
+        return null;
+    }
 }

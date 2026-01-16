@@ -2,7 +2,6 @@ package com.snowflake.dlsync.dependency;
 
 import com.snowflake.dlsync.models.MigrationScript;
 import com.snowflake.dlsync.models.Script;
-import com.snowflake.dlsync.models.ScriptObjectType;
 import com.snowflake.dlsync.parser.SqlTokenizer;
 import lombok.extern.slf4j.Slf4j;
 
@@ -10,8 +9,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -31,72 +28,6 @@ public class DependencyExtractor {
         log.debug("Dependency extractor started.");
     }
 
-
-    public Set<String> extractScriptDependenciesOld(Script script) {
-        if(script.getObjectType() != ScriptObjectType.VIEWS && script.getObjectType() != ScriptObjectType.FUNCTIONS ) {
-            return new HashSet<>();
-        }
-        if(script.getObjectType() == ScriptObjectType.FUNCTIONS && !Pattern.compile(FUNCTION_WITH_DEPENDENCY_REGEX).matcher(script.getContent()).find()) {
-            return new HashSet<>();
-        }
-
-        Set<String> dependencies = new HashSet<>();
-        Set<String> falseDependencies = new HashSet<>();
-        String content = script.getContent();
-        if(script.getObjectType() == ScriptObjectType.VIEWS) {
-            for (String regex : COMMENT_REGEX) {
-                content = content.replaceAll(regex, "");
-            }
-        }
-
-        for(String regex: VIEW_FALSE_POSITIVE_DEPENDENCY_REGEX) {
-            Pattern pattern = Pattern.compile(regex, Pattern.MULTILINE);
-            Matcher matcher = pattern.matcher(content);
-            while (matcher.find()) {
-                String objectName = constructFullObjectName(script, matcher.group(1));
-                falseDependencies.add(objectName);
-            }
-        }
-
-        for(String regex: VIEW_DEPENDENCY_REGEX) {
-            Pattern pattern = Pattern.compile(regex);
-            Matcher matcher = pattern.matcher(content);
-            while (matcher.find()) {
-                String objectName = constructFullObjectName(script, matcher.group(1));
-                objectName = objectName.replaceAll("\"", "");
-                if(!falseDependencies.contains(objectName)) {
-                    dependencies.add(objectName);
-                }
-//                String nameTerminator = matcher.group(2);
-//                if(nameTerminator != null && nameTerminator.endsWith(",")) {
-//                    int end = matcher.end(2);
-//                    String subContent = content.substring(end);
-//                    Matcher crossJoinMather = Pattern.compile(CROSS_JOIN_DEPENDENCY).matcher(subContent);
-//                }
-
-            }
-        }
-        log.debug("For the object {} found the following dependencies: {}", script.getObjectName(), dependencies);
-        return dependencies;
-    }
-
-    private String constructFullObjectName(Script from, String partialName) {
-        String[] objectHierarchy = partialName.split("\\.");
-        String fullyQualifiedName = "%s.%s.%s";
-        if(objectHierarchy.length == 1) {
-            fullyQualifiedName = String.format("%s.%s.%s", from.getDatabaseName(), from.getSchemaName(),  objectHierarchy[0]);
-        }
-        else if(objectHierarchy.length == 2) {
-            fullyQualifiedName = String.format("%s.%s.%s", from.getDatabaseName(), objectHierarchy[0],  objectHierarchy[1]);
-        }
-        else if(objectHierarchy.length == 3) {
-            fullyQualifiedName = String.format("%s.%s.%s", objectHierarchy[0], objectHierarchy[1],  objectHierarchy[2]);
-        }
-        else {
-            log.error("Unknown dependency extracted: {} from script: {}", partialName, from);
-        }
-        return fullyQualifiedName.toUpperCase();
-    }
 
     public void addScripts(List<? extends Script> scripts) {
         this.scripts.addAll(scripts);
@@ -122,6 +53,9 @@ public class DependencyExtractor {
     }
 
     private boolean isDependencyOf(Script dependency, Script target) {
+        if(target.getObjectName().equals("USER_ROLE") && dependency.getObjectName().equals("{EXAMPLE_DB}.${MAIN_SCHEMA}")) {
+            log.debug("User-role dependency found: {}", dependency);
+        }
         if(dependency.getObjectName().equals(target.getObjectName())) {
             log.debug("Found same object name with different schema: {}, {}", dependency, target);
         }
@@ -130,7 +64,7 @@ public class DependencyExtractor {
             return false;
         }
         for(String identifier: fullIdentifiers) {
-            String fullObjectName = constructFullObjectName(target, identifier);
+            String fullObjectName = target.resolveObjectReference(identifier);
             if (fullObjectName.equals(dependency.getFullObjectName())) {
                 return true;
             }

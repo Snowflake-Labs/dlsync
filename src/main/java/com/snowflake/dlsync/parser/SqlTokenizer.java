@@ -1,19 +1,12 @@
 package com.snowflake.dlsync.parser;
 
 import com.snowflake.dlsync.ScriptFactory;
-import com.snowflake.dlsync.models.Migration;
-import com.snowflake.dlsync.models.MigrationScript;
-import com.snowflake.dlsync.models.Script;
-import com.snowflake.dlsync.models.ScriptObjectType;
+import com.snowflake.dlsync.models.*;
 import lombok.extern.slf4j.Slf4j;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 @Slf4j
 public class SqlTokenizer {
@@ -29,7 +22,7 @@ public class SqlTokenizer {
     private static final String IDENTIFIER_REGEX = "((?:\\\"[^\"]+\\\"\\.)|(?:[{}$a-zA-Z0-9_]+\\.))?((?:\\\"[^\"]+\\\"\\.)|(?:[{}$a-zA-Z0-9_]+\\.))?(?i)";
     private static final String MIGRATION_REGEX = VERSION_REGEX + AUTHOR_REGEX + CONTENT_REGEX + ROLL_BACK_REGEX + VERIFY_REGEX;
 
-    private static final String DDL_REGEX = ";\\n+(CREATE\\s+OR\\s+REPLACE\\s+(TRANSIENT\\s|HYBRID\\s|SECURE\\s)?(?<type>DYNAMIC TABLE|FILE FORMAT|MASKING POLICY|VIEW|FUNCTION|PROCEDURE|TABLE|STREAM|SEQUENCE|STAGE|TASK|STREAMLIT|PIPE|ALERT|\\w+)\\s+(?<name>[\\\"\\w.]+)([\\s\\S]+?)(?=(;\\nCREATE\\s+)|(;$)))";
+    private static final String DDL_REGEX = buildDdlRegex();
 
     private static final String STRING_LITERAL_REGEX = "(?<!as\\s{1,5})'([^'\\\\]*(?:\\\\.[^'\\\\]*)*(?:''[^'\\\\]*)*)'";
 
@@ -37,6 +30,25 @@ public class SqlTokenizer {
     private static final String FUNCTION_BODY_REGEX = "(CREATE\\s+OR\\s+REPLACE\\s+FUNCTION\\s+)(?<name>[\\w.${}]+)(?:[\\s\\S]*?AS\\s+('|\\$\\$)\\s*)(?<body>[\\s\\S]+)('|\\$\\$)\\s*;$";
     private static final String PROCEDURE_BODY_REGEX = "(CREATE\\s+OR\\s+REPLACE\\s+PROCEDURE\\s+)(?<name>[\\w.${}]+)(?:[\\s\\S]*?AS\\s+('|\\$\\$)\\s*)(?<body>[\\s\\S]+)('|\\$\\$)\\s*;$";
     private static final String FILE_FORMAT_BODY_REGEX = "(CREATE\\s+OR\\s+REPLACE\\s+FILE FORMAT\\s+)(?<body>[\\w.${}]+)([\\s\\S]+)$";
+
+    /**
+     * Dynamically builds DDL_REGEX pattern from ScriptObjectType enum values
+     * This ensures that all supported object types are included in the regex
+     */
+    private static String buildDdlRegex() {
+        StringBuilder objectTypes = new StringBuilder();
+        ScriptObjectType[] types = ScriptObjectType.values();
+
+        for (int i = 0; i < types.length; i++) {
+            if (i > 0) {
+                objectTypes.append("|");
+            }
+            // Escape spaces in object type names like "DYNAMIC TABLE" and "FILE FORMAT"
+            objectTypes.append(types[i].getSingular().replace(" ", "\\s+"));
+        }
+
+        return ";\\n+(CREATE\\s+OR\\s+REPLACE\\s+(TRANSIENT\\s|HYBRID\\s|SECURE\\s)?(?<type>" + objectTypes.toString() + "|\\w+)\\s+(IF\\s+NOT\\s+EXISTS\\s+)?(?<name>[\\\"\\w.]+)([\\s\\S]+?)(?=(;\\nCREATE\\s+)|(;$)))";
+    }
 
     public static List<Migration> parseMigrationScripts(String content) {
         List<Migration> migrations = new ArrayList<>();
@@ -62,7 +74,27 @@ public class SqlTokenizer {
         return migrations;
     }
 
-    public static Set<Script> parseScript(String filePath, String name, String scriptType, String content) {
+    public static AccountScript parseAccountScript(String filePath, String name, String scriptType, String content) {
+        String objectName = extractObjectName(name, content);
+        Optional<ScriptObjectType> optionalObjectType = Arrays.stream(ScriptObjectType.values()).filter( type -> type.toString().equalsIgnoreCase(scriptType)).findFirst();
+        if(!optionalObjectType.isPresent()) {
+            log.error("Unsupported object type: {} found!", scriptType, name);
+            throw new RuntimeException("Unknown script type of directory: " + scriptType);
+        }
+        ScriptObjectType objectType = optionalObjectType.get();
+        AccountScript accountScript = ScriptFactory.getAccountScript(filePath, objectType, objectName, content);
+        if(objectType.isMigration()) {
+            List<Migration> migrations = SqlTokenizer.parseMigrationScripts(content);
+            if(migrations.isEmpty()) {
+                log.warn("Object type: {} is migration, but there are no migrations found in the file: {}", objectType, filePath);
+            }
+            List<MigrationScript> migrationScripts = ScriptFactory.getMigrationScripts(accountScript, migrations);
+            accountScript.setMigrations(migrationScripts);
+        }
+        return accountScript;
+    }
+
+    public static SchemaScript parseSchemaScript(String filePath, String name, String scriptType, String content) {
         String objectName = SqlTokenizer.extractObjectName(name, content);
         Optional<ScriptObjectType> optionalObjectType = Arrays.stream(ScriptObjectType.values()).filter( type -> type.toString().equalsIgnoreCase(scriptType)).findFirst();
         if(!optionalObjectType.isPresent()) {
@@ -81,28 +113,16 @@ public class SqlTokenizer {
             log.error("Error reading script: {}, database or schema not specified", name);
             throw new RuntimeException("Database, schema and object name must be provided in the script file.");
         }
-        Set<Script> scripts = new HashSet<>();
+        SchemaScript schemaScript = ScriptFactory.getSchemaScript(filePath, database, schema, objectType, objectName, content);
         if(objectType.isMigration()) {
             List<Migration> migrations = SqlTokenizer.parseMigrationScripts(content);
             if(migrations.isEmpty()) {
                 log.warn("Object type: {} is migration, but there are no migrations found in the file: {}", objectType, filePath);
             }
-            for(Migration migration: migrations) {
-                MigrationScript script = ScriptFactory.getMigrationScript(database, schema, objectType, objectName, migration);
-//                Script script = new Script(database, schema, objectType, objectName, migration.getContent(), migration.getVersion(), migration.getAuthor(), migration.getRollback());
-                if(scripts.contains(script)) {
-                    log.error("Duplicate version {} for script {} found.", script.getVersion(), script);
-                    throw new RuntimeException("Duplicate version number is not allowed in the same script file.");
-                }
-                scripts.add(script);
-            }
+            List<MigrationScript> migrationScripts = ScriptFactory.getMigrationScripts(schemaScript, migrations);
+            schemaScript.setMigrations(migrationScripts);
         }
-        else {
-            Script script = ScriptFactory.getStateScript(filePath, database, schema, objectType, objectName, content);
-//            Script script = new Script(database, schema, objectType, objectName, content);
-            scripts.add(script);
-        }
-        return scripts;
+        return schemaScript;
     }
 
     public static String removeSqlComments(String sql) {
@@ -243,9 +263,9 @@ public class SqlTokenizer {
         return fullIdentifiers;
     }
 
-    public static List<Script> parseDdlScripts(String ddl, String database, String schema) {
+    public static List<SchemaScript> parseDdlScripts(String ddl, String database, String schema) {
         Matcher matcher = Pattern.compile(DDL_REGEX, Pattern.CASE_INSENSITIVE).matcher(ddl);
-        List<Script> scripts = new ArrayList<>();
+        List<SchemaScript> scripts = new ArrayList<>();
         log.debug("parsing ddl scripts {}", ddl);
         while(matcher.find()) {
             String content = matcher.group(1) + ";";
@@ -265,10 +285,19 @@ public class SqlTokenizer {
             String scriptObjectName  = fullObjectName.split("\\.")[2];
 
             if (objectType.isMigration()) {
-                MigrationScript script = ScriptFactory.getMigrationScript(database, schema, objectType, scriptObjectName, content);
+                Long version = 0L;
+                String author = "DlSync";
+                String rollback = String.format("DROP %s IF EXISTS %s;", objectType.getSingular(), fullObjectName);
+                String verify = String.format("SHOW %s LIKE '%s';", objectType, fullObjectName);
+
+                String migrationHeader = String.format("---version: %s, author: %s\n", version, author);
+                String rollbackFormat = String.format("\n---rollback: %s", rollback);
+                String verifyFormat = String.format("\n---verify: %s", verify);
+                content = migrationHeader + content + rollbackFormat + verifyFormat;
+                SchemaScript script = ScriptFactory.getSchemaScript(database, schema, objectType, scriptObjectName, content);
                 scripts.add(script);
             } else {
-                Script script = ScriptFactory.getStateScript(database, schema, objectType, scriptObjectName, content);
+                SchemaScript script = ScriptFactory.getSchemaScript(database, schema, objectType, scriptObjectName, content);
                 scripts.add(script);
             }
         }
@@ -363,7 +392,7 @@ public class SqlTokenizer {
     }
 
     public static String extractObjectName(String fileName, String content) {
-        return fileName.split("\\.")[0].toUpperCase();
+        return fileName.replaceAll("(?i)\\.sql$", "").toUpperCase();
     }
 
     public static String extractDatabaseName(String fullIdentifier) {
@@ -385,4 +414,24 @@ public class SqlTokenizer {
         return null;
     }
 
+    public static String extractObjectNameFromDdl(String ddlContent) {
+        ddlContent = removeSqlComments(ddlContent);
+        ddlContent = removeSqlStringLiterals(ddlContent);
+
+        Matcher matcher = Pattern.compile(DDL_REGEX, Pattern.CASE_INSENSITIVE).matcher(ddlContent);
+        if (matcher.find()) {
+            String fullObjectName = matcher.group("name");
+            if (fullObjectName != null && !fullObjectName.isEmpty()) {
+                // Extract just the object name (last part after final dot)
+                String[] parts = fullObjectName.split("\\.");
+                String objectName = parts[parts.length - 1];
+                // Remove quotes if present
+                objectName = objectName.replace("\"", "");
+                return objectName.toUpperCase();
+            }
+        }
+
+        log.warn("Could not extract object name from DDL content");
+        return null;
+    }
 }
