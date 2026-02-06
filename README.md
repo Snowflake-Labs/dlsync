@@ -113,7 +113,7 @@ Where
   - Other account-level objects (users, resource monitors, integrations, etc.)
 - **database_name_*:** is the database name of your project, 
 - **schema_name_*:** are schemas inside the database, 
-- **object_type:** is type of the object only 1 of the following (VIEWS, FUNCTIONS, PROCEDURES, FILE_FORMATS, TABLES, SEQUENCES, STAGES, STREAMS, TASKS, STREAMLITS, PIPES, ALERTS, DYNAMIC_TABLES, MASKING_POLICIES),
+- **object_type:** is type of the object only 1 of the following (VIEWS, FUNCTIONS, PROCEDURES, FILE_FORMATS, TABLES, SEQUENCES, STAGES, STREAMS, TASKS, STREAMLITS, PIPES, ALERTS, DYNAMIC_TABLES, MASKING_POLICIES, CORTEX_SEARCH_SERVICES, SEMANTIC_VIEWS, AGENTS),
 - **object_name_*.sql:** are individual database object scripts.
 - **config.yml:** is a configuration file used to configure DLSync behavior.
 - **parameter-[profile-*].properties:** is parameter to value map file. This is going to be used by corresponding individual instances of your database.
@@ -131,7 +131,7 @@ For example, if you have a view named `SAMPLE_VIEW` in schema `MY_SCHEMA` in dat
 
 The structure and content of the scripts differ based on the type of script. This tool categorizes scripts into 2 types: Declarative scripts and Migration scripts.
 #### 1. Declarative Script
-This type of script is used for object types of VIEWS, FUNCTIONS, PROCEDURES, FILE_FORMATS, PIPES, MASKING_POLICIES, STREAMLITS, RESOURCE_MONITORS, NETWORK_POLICIES, SESSION_POLICIES, PASSWORD_POLICIES, AUTHENTICATION_POLICIES, API_INTEGRATIONS, NOTIFICATION_INTEGRATIONS, SECURITY_INTEGRATIONS, STORAGE_INTEGRATIONS, and WAREHOUSES.
+This type of script is used for object types of VIEWS, FUNCTIONS, PROCEDURES, FILE_FORMATS, PIPES, MASKING_POLICIES, CORTEX_SEARCH_SERVICES, SEMANTIC_VIEWS, AGENTS, STREAMLITS, RESOURCE_MONITORS, NETWORK_POLICIES, SESSION_POLICIES, PASSWORD_POLICIES, AUTHENTICATION_POLICIES, API_INTEGRATIONS, NOTIFICATION_INTEGRATIONS, SECURITY_INTEGRATIONS, STORAGE_INTEGRATIONS, and WAREHOUSES.
 In this type of script, you define the current state (desired state) of the object.
 When a change is made to the script, DLSync replaces the current object with the updated definition. 
 These types of scripts must always have a `create or replace` statement. Every time you make a change to the script, DLSync will replace the object with the new definition.

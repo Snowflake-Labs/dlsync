@@ -388,5 +388,172 @@ class DependencyExtractorTest {
 
     }
 
+    SchemaScript mockCortexSearchDependency(String name, String schema) {
+        String content = "CREATE OR REPLACE CORTEX SEARCH SERVICE " + name + "\n" +
+                "  ON search_column\n" +
+                "  ATTRIBUTES attr1, attr2\n" +
+                "  WAREHOUSE = MY_WH\n" +
+                "  TARGET_LAG = '1 hour'\n" +
+                "AS (SELECT * FROM SOURCE_TABLE);";
+        return ScriptFactory.getSchemaScript("TEST_DB", schema, ScriptObjectType.CORTEX_SEARCH_SERVICES, name, content);
+    }
+
+    @Test
+    void extractScriptDependenciesCortexSearchService() {
+        String content = "CREATE OR REPLACE CORTEX SEARCH SERVICE TEST_SCHEMA.PRODUCT_SEARCH\n" +
+                "  ON product_description\n" +
+                "  ATTRIBUTES product_name, category\n" +
+                "  WAREHOUSE = MY_WH\n" +
+                "  TARGET_LAG = '1 hour'\n" +
+                "AS (\n" +
+                "  SELECT product_name, product_description, category\n" +
+                "  FROM TEST_SCHEMA.PRODUCTS\n" +
+                ");";
+        SchemaScript script = ScriptFactory.getSchemaScript("TEST_DB", "TEST_SCHEMA", ScriptObjectType.CORTEX_SEARCH_SERVICES, "PRODUCT_SEARCH", content);
+        MigrationScript dependency1 = mockTableDependency("PRODUCTS", "TEST_SCHEMA");
+        List<Script> changedScript = mockScripts().stream().map(schemaScript -> (Script)schemaScript).collect(Collectors.toList());
+        changedScript.add(script);
+        changedScript.add(dependency1);
+        dependencyExtractor.addScripts(changedScript);
+        Set<Script> expected = Set.of(
+                dependency1
+        );
+        Set<Script> actual = dependencyExtractor.extractScriptDependencies(script);
+        assertEquals(expected, actual, "Cortex Search Service dependency extractor failed:");
+    }
+
+    @Test
+    void extractScriptDependenciesCortexSearchServiceWithMultipleTables() {
+        String content = "CREATE OR REPLACE CORTEX SEARCH SERVICE TEST_SCHEMA.UNIFIED_SEARCH\n" +
+                "  ON content\n" +
+                "  ATTRIBUTES title, category\n" +
+                "  WAREHOUSE = MY_WH\n" +
+                "  TARGET_LAG = '1 hour'\n" +
+                "AS (\n" +
+                "  SELECT title, content, category FROM TEST_SCHEMA.ARTICLES\n" +
+                "  UNION ALL\n" +
+                "  SELECT name AS title, description AS content, type AS category FROM TEST_SCHEMA.PRODUCTS\n" +
+                ");";
+        SchemaScript script = ScriptFactory.getSchemaScript("TEST_DB", "TEST_SCHEMA", ScriptObjectType.CORTEX_SEARCH_SERVICES, "UNIFIED_SEARCH", content);
+        MigrationScript dependency1 = mockTableDependency("ARTICLES", "TEST_SCHEMA");
+        MigrationScript dependency2 = mockTableDependency("PRODUCTS", "TEST_SCHEMA");
+        List<Script> changedScript = mockScripts().stream().map(schemaScript -> (Script)schemaScript).collect(Collectors.toList());
+        changedScript.add(script);
+        changedScript.add(dependency1);
+        changedScript.add(dependency2);
+        dependencyExtractor.addScripts(changedScript);
+        Set<Script> expected = Set.of(
+                dependency1,
+                dependency2
+        );
+        Set<Script> actual = dependencyExtractor.extractScriptDependencies(script);
+        assertEquals(expected, actual, "Cortex Search Service with multiple tables dependency extractor failed:");
+    }
+
+    @Test
+    void testCortexSearchServiceObjectType() {
+        assertEquals("CORTEX SEARCH SERVICE", ScriptObjectType.CORTEX_SEARCH_SERVICES.getSingular());
+        assertEquals("CORTEX_SEARCH_SERVICE", ScriptObjectType.CORTEX_SEARCH_SERVICES.getEscapedSingular());
+        assertEquals(ScriptObjectType.ObjectLevel.SCHEMA, ScriptObjectType.CORTEX_SEARCH_SERVICES.getLevel());
+        assertFalse(ScriptObjectType.CORTEX_SEARCH_SERVICES.isMigration());
+    }
+
+    SchemaScript mockSemanticViewDependency(String name, String schema) {
+        String content = "CREATE OR REPLACE SEMANTIC VIEW " + name + "\n" +
+                "  TABLES (t AS SOURCE_TABLE PRIMARY KEY (ID))\n" +
+                "  DIMENSIONS (t.dim1 AS t.COL1)\n" +
+                "  METRICS (t.metric1 AS SUM(t.COL2));";
+        return ScriptFactory.getSchemaScript("TEST_DB", schema, ScriptObjectType.SEMANTIC_VIEWS, name, content);
+    }
+
+    @Test
+    void extractScriptDependenciesSemanticView() {
+        String content = "CREATE OR REPLACE SEMANTIC VIEW TEST_SCHEMA.SALES_ANALYTICS\n" +
+                "  TABLES (\n" +
+                "    products AS TEST_SCHEMA.PRODUCTS PRIMARY KEY (PRODUCT_ID),\n" +
+                "    orders AS TEST_SCHEMA.ORDERS PRIMARY KEY (ORDER_ID)\n" +
+                "  )\n" +
+                "  RELATIONSHIPS (orders (PRODUCT_ID) REFERENCES products)\n" +
+                "  DIMENSIONS (products.name AS products.NAME)\n" +
+                "  METRICS (orders.revenue AS SUM(orders.PRICE));";
+        SchemaScript script = ScriptFactory.getSchemaScript("TEST_DB", "TEST_SCHEMA", ScriptObjectType.SEMANTIC_VIEWS, "SALES_ANALYTICS", content);
+        MigrationScript dependency1 = mockTableDependency("PRODUCTS", "TEST_SCHEMA");
+        MigrationScript dependency2 = mockTableDependency("ORDERS", "TEST_SCHEMA");
+        List<Script> changedScript = mockScripts().stream().map(schemaScript -> (Script)schemaScript).collect(Collectors.toList());
+        changedScript.add(script);
+        changedScript.add(dependency1);
+        changedScript.add(dependency2);
+        dependencyExtractor.addScripts(changedScript);
+        Set<Script> expected = Set.of(
+                dependency1,
+                dependency2
+        );
+        Set<Script> actual = dependencyExtractor.extractScriptDependencies(script);
+        assertEquals(expected, actual, "Semantic View dependency extractor failed:");
+    }
+
+    @Test
+    void testSemanticViewObjectType() {
+        assertEquals("SEMANTIC VIEW", ScriptObjectType.SEMANTIC_VIEWS.getSingular());
+        assertEquals("SEMANTIC_VIEW", ScriptObjectType.SEMANTIC_VIEWS.getEscapedSingular());
+        assertEquals(ScriptObjectType.ObjectLevel.SCHEMA, ScriptObjectType.SEMANTIC_VIEWS.getLevel());
+        assertFalse(ScriptObjectType.SEMANTIC_VIEWS.isMigration());
+    }
+
+    SchemaScript mockAgentDependency(String name, String schema) {
+        String content = "CREATE OR REPLACE AGENT " + name + "\n" +
+                "  COMMENT = 'Test agent'\n" +
+                "  FROM SPECIFICATION\n" +
+                "  $$\n" +
+                "  tools:\n" +
+                "    - tool_spec:\n" +
+                "        type: \"cortex_search\"\n" +
+                "        name: \"Search1\"\n" +
+                "  $$;";
+        return ScriptFactory.getSchemaScript("TEST_DB", schema, ScriptObjectType.AGENTS, name, content);
+    }
+
+    @Test
+    void extractScriptDependenciesAgent() {
+        String content = "CREATE OR REPLACE AGENT TEST_SCHEMA.SALES_ASSISTANT\n" +
+                "  COMMENT = 'Sales assistant agent'\n" +
+                "  FROM SPECIFICATION\n" +
+                "  $$\n" +
+                "  tools:\n" +
+                "    - tool_spec:\n" +
+                "        type: \"cortex_analyst_text_to_sql\"\n" +
+                "        name: \"Analyst\"\n" +
+                "    - tool_spec:\n" +
+                "        type: \"cortex_search\"\n" +
+                "        name: \"Search\"\n" +
+                "  tool_resources:\n" +
+                "    Analyst:\n" +
+                "      semantic_view: \"TEST_SCHEMA.SALES_ANALYTICS\"\n" +
+                "    Search:\n" +
+                "      name: \"TEST_SCHEMA.PRODUCT_SEARCH\"\n" +
+                "  $$;";
+        SchemaScript script = ScriptFactory.getSchemaScript("TEST_DB", "TEST_SCHEMA", ScriptObjectType.AGENTS, "SALES_ASSISTANT", content);
+        SchemaScript dependency1 = mockSemanticViewDependency("SALES_ANALYTICS", "TEST_SCHEMA");
+        SchemaScript dependency2 = mockCortexSearchDependency("PRODUCT_SEARCH", "TEST_SCHEMA");
+        List<Script> changedScript = mockScripts().stream().map(schemaScript -> (Script)schemaScript).collect(Collectors.toList());
+        changedScript.add(script);
+        changedScript.add(dependency1);
+        changedScript.add(dependency2);
+        dependencyExtractor.addScripts(changedScript);
+        Set<Script> expected = Set.of(
+                dependency1,
+                dependency2
+        );
+        Set<Script> actual = dependencyExtractor.extractScriptDependencies(script);
+        assertEquals(expected, actual, "Agent dependency extractor failed:");
+    }
+
+    @Test
+    void testAgentObjectType() {
+        assertEquals("AGENT", ScriptObjectType.AGENTS.getSingular());
+        assertEquals("AGENT", ScriptObjectType.AGENTS.getEscapedSingular());
+        assertEquals(ScriptObjectType.ObjectLevel.SCHEMA, ScriptObjectType.AGENTS.getLevel());
+        assertFalse(ScriptObjectType.AGENTS.isMigration());
+    }
 
 }

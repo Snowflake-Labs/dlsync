@@ -173,6 +173,97 @@ class ScriptRepoTest {
         verify(mockConnection, atLeastOnce()).commit();
     }
 
+    @Test
+    void testCreateCortexSearchServiceScript() throws SQLException {
+        SchemaScript script = new SchemaScript(
+            "test/PRODUCT_SEARCH.sql",
+            "TEST_DB",
+            "TEST_SCHEMA",
+            "PRODUCT_SEARCH",
+            ScriptObjectType.CORTEX_SEARCH_SERVICES,
+            "CREATE OR REPLACE CORTEX SEARCH SERVICE TEST_DB.TEST_SCHEMA.PRODUCT_SEARCH\n" +
+            "  ON product_description\n" +
+            "  ATTRIBUTES product_name, category\n" +
+            "  WAREHOUSE = MY_WH\n" +
+            "  TARGET_LAG = '1 hour'\n" +
+            "AS (SELECT * FROM TEST_DB.TEST_SCHEMA.PRODUCTS);"
+        );
+        script.setHash("cortex_search_hash");
+
+        when(mockStatement.execute(anyString())).thenReturn(false);
+        when(mockPreparedStatement.executeUpdate()).thenReturn(1);
+
+        scriptRepo.createScriptObject(script, false);
+
+        ArgumentCaptor<String> executeCaptor = ArgumentCaptor.forClass(String.class);
+        verify(mockStatement, times(1)).execute(executeCaptor.capture());
+        assertTrue(executeCaptor.getValue().contains("CORTEX SEARCH SERVICE"),
+            "Cortex Search Service DDL should be executed");
+
+        verify(mockConnection, atLeastOnce()).commit();
+    }
+
+    @Test
+    void testCreateSemanticViewScript() throws SQLException {
+        SchemaScript script = new SchemaScript(
+            "test/SALES_ANALYTICS.sql",
+            "TEST_DB",
+            "TEST_SCHEMA",
+            "SALES_ANALYTICS",
+            ScriptObjectType.SEMANTIC_VIEWS,
+            "CREATE OR REPLACE SEMANTIC VIEW TEST_DB.TEST_SCHEMA.SALES_ANALYTICS\n" +
+            "  TABLES (products AS TEST_DB.TEST_SCHEMA.PRODUCTS PRIMARY KEY (PRODUCT_ID))\n" +
+            "  DIMENSIONS (products.name AS products.NAME)\n" +
+            "  METRICS (products.revenue AS SUM(products.PRICE));"
+        );
+        script.setHash("semantic_view_hash");
+
+        when(mockStatement.execute(anyString())).thenReturn(false);
+        when(mockPreparedStatement.executeUpdate()).thenReturn(1);
+
+        scriptRepo.createScriptObject(script, false);
+
+        ArgumentCaptor<String> executeCaptor = ArgumentCaptor.forClass(String.class);
+        verify(mockStatement, times(1)).execute(executeCaptor.capture());
+        assertTrue(executeCaptor.getValue().contains("SEMANTIC VIEW"),
+            "Semantic View DDL should be executed");
+
+        verify(mockConnection, atLeastOnce()).commit();
+    }
+
+    @Test
+    void testCreateAgentScript() throws SQLException {
+        SchemaScript script = new SchemaScript(
+            "test/SALES_ASSISTANT.sql",
+            "TEST_DB",
+            "TEST_SCHEMA",
+            "SALES_ASSISTANT",
+            ScriptObjectType.AGENTS,
+            "CREATE OR REPLACE AGENT TEST_DB.TEST_SCHEMA.SALES_ASSISTANT\n" +
+            "  COMMENT = 'Sales assistant agent'\n" +
+            "  FROM SPECIFICATION\n" +
+            "  $$\n" +
+            "  tools:\n" +
+            "    - tool_spec:\n" +
+            "        type: \"cortex_search\"\n" +
+            "        name: \"Search\"\n" +
+            "  $$;"
+        );
+        script.setHash("agent_hash");
+
+        when(mockStatement.execute(anyString())).thenReturn(false);
+        when(mockPreparedStatement.executeUpdate()).thenReturn(1);
+
+        scriptRepo.createScriptObject(script, false);
+
+        ArgumentCaptor<String> executeCaptor = ArgumentCaptor.forClass(String.class);
+        verify(mockStatement, times(1)).execute(executeCaptor.capture());
+        assertTrue(executeCaptor.getValue().contains("AGENT"),
+            "Agent DDL should be executed");
+
+        verify(mockConnection, atLeastOnce()).commit();
+    }
+
     private ScriptRepo createScriptRepoWithMockedConnection() throws SQLException {
         Properties props = new Properties();
         props.setProperty("account", "test_account");

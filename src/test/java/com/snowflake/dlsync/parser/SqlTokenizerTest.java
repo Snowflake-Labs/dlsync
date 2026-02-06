@@ -926,6 +926,118 @@ class SqlTokenizerTest {
         assertEquals("user2", thirdMigration.getAuthor(), "Third author should be user2");
     }
 
+    // ===== Cortex Search Service Tests =====
+
+    @Test
+    void parseSchemaScriptTypeCortexSearchService() {
+        String filePath = "db_scripts/db1/schema1/CORTEX_SEARCH_SERVICES/PRODUCT_SEARCH.SQL";
+        String name = "PRODUCT_SEARCH.SQL";
+        String scriptType = "CORTEX_SEARCH_SERVICES";
+        String content = "CREATE OR REPLACE CORTEX SEARCH SERVICE db1.schema1.PRODUCT_SEARCH\n" +
+                "  ON product_description\n" +
+                "  ATTRIBUTES product_name, category\n" +
+                "  WAREHOUSE = MY_WH\n" +
+                "  TARGET_LAG = '1 hour'\n" +
+                "AS (SELECT * FROM db1.schema1.PRODUCTS);";
+
+        SchemaScript script = SqlTokenizer.parseSchemaScript(filePath, name, scriptType, content);
+
+        assertNotNull(script, "Script should not be null");
+        assertEquals("PRODUCT_SEARCH", script.getObjectName(), "Object name should be PRODUCT_SEARCH");
+        assertEquals("db1".toUpperCase(), script.getDatabaseName(), "Database name should be db1");
+        assertEquals("schema1".toUpperCase(), script.getSchemaName(), "Schema name should be schema1");
+        assertEquals(ScriptObjectType.CORTEX_SEARCH_SERVICES, script.getObjectType(), "Object type should be CORTEX_SEARCH_SERVICES");
+        assertEquals(content, script.getContent(), "Script content should match the input content");
+    }
+
+
+    // ===== Semantic View Tests =====
+
+    @Test
+    void parseSchemaScriptTypeSemanticView() {
+        String filePath = "db_scripts/db1/schema1/SEMANTIC_VIEWS/SALES_ANALYTICS.SQL";
+        String name = "SALES_ANALYTICS.SQL";
+        String scriptType = "SEMANTIC_VIEWS";
+        String content = "CREATE OR REPLACE SEMANTIC VIEW db1.schema1.SALES_ANALYTICS\n" +
+                "  TABLES (\n" +
+                "    products AS db1.schema1.PRODUCTS PRIMARY KEY (PRODUCT_ID)\n" +
+                "  )\n" +
+                "  DIMENSIONS (\n" +
+                "    products.product_name AS products.NAME\n" +
+                "  )\n" +
+                "  METRICS (\n" +
+                "    products.total_revenue AS SUM(products.PRICE)\n" +
+                "  );";
+
+        SchemaScript script = SqlTokenizer.parseSchemaScript(filePath, name, scriptType, content);
+
+        assertNotNull(script, "Script should not be null");
+        assertEquals("SALES_ANALYTICS", script.getObjectName(), "Object name should be SALES_ANALYTICS");
+        assertEquals("db1".toUpperCase(), script.getDatabaseName(), "Database name should be db1");
+        assertEquals("schema1".toUpperCase(), script.getSchemaName(), "Schema name should be schema1");
+        assertEquals(ScriptObjectType.SEMANTIC_VIEWS, script.getObjectType(), "Object type should be SEMANTIC_VIEWS");
+        assertEquals(content, script.getContent(), "Script content should match the input content");
+    }
+
+
+    // ===== Agent Tests =====
+
+    @Test
+    void parseSchemaScriptTypeAgent() {
+        String filePath = "db_scripts/db1/schema1/AGENTS/SALES_ASSISTANT.SQL";
+        String name = "SALES_ASSISTANT.SQL";
+        String scriptType = "AGENTS";
+        String content = "CREATE OR REPLACE AGENT db1.schema1.SALES_ASSISTANT\n" +
+                "  COMMENT = 'Sales assistant agent'\n" +
+                "  FROM SPECIFICATION\n" +
+                "  $$\n" +
+                "  tools:\n" +
+                "    - tool_spec:\n" +
+                "        type: \"cortex_search\"\n" +
+                "        name: \"Search\"\n" +
+                "  $$;";
+
+        SchemaScript script = SqlTokenizer.parseSchemaScript(filePath, name, scriptType, content);
+
+        assertNotNull(script, "Script should not be null");
+        assertEquals("SALES_ASSISTANT", script.getObjectName(), "Object name should be SALES_ASSISTANT");
+        assertEquals("db1".toUpperCase(), script.getDatabaseName(), "Database name should be db1");
+        assertEquals("schema1".toUpperCase(), script.getSchemaName(), "Schema name should be schema1");
+        assertEquals(ScriptObjectType.AGENTS, script.getObjectType(), "Object type should be AGENTS");
+        assertEquals(content, script.getContent(), "Script content should match the input content");
+    }
+
+    @Test
+    void parseSchemaScriptTypeAgentWithProfile() {
+        String filePath = "db_scripts/db1/schema1/AGENTS/SUPPORT_AGENT.SQL";
+        String name = "SUPPORT_AGENT.SQL";
+        String scriptType = "AGENTS";
+        String content = "CREATE OR REPLACE AGENT db1.schema1.SUPPORT_AGENT\n" +
+                "  COMMENT = 'Customer support agent'\n" +
+                "  PROFILE = '{\"display_name\": \"Support Bot\", \"avatar\": \"support.png\", \"color\": \"green\"}'\n" +
+                "  FROM SPECIFICATION\n" +
+                "  $$\n" +
+                "  models:\n" +
+                "    orchestration: claude-4-sonnet\n" +
+                "  orchestration:\n" +
+                "    budget:\n" +
+                "      seconds: 30\n" +
+                "      tokens: 16000\n" +
+                "  tools:\n" +
+                "    - tool_spec:\n" +
+                "        type: \"cortex_analyst_text_to_sql\"\n" +
+                "        name: \"Analyst\"\n" +
+                "  $$;";
+
+        SchemaScript script = SqlTokenizer.parseSchemaScript(filePath, name, scriptType, content);
+
+        assertNotNull(script, "Script should not be null");
+        assertEquals("SUPPORT_AGENT", script.getObjectName(), "Object name should be SUPPORT_AGENT");
+        assertEquals("db1".toUpperCase(), script.getDatabaseName(), "Database name should be db1");
+        assertEquals("schema1".toUpperCase(), script.getSchemaName(), "Schema name should be schema1");
+        assertEquals(ScriptObjectType.AGENTS, script.getObjectType(), "Object type should be AGENTS");
+        assertEquals(content, script.getContent(), "Script content should match the input content");
+    }
 
 
 }
