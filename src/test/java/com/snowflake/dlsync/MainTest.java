@@ -82,6 +82,21 @@ public class MainTest {
     }
 
     @Test
+    void testGetChangeTypeForPlan() {
+        String[] args = {"plan"};
+        ChangeType changeType = Main.getChangeType(args);
+        assertEquals(ChangeType.PLAN, changeType, "Should recognize 'plan' as PLAN command");
+
+        String[] args2 = {"PLAN"};
+        changeType = Main.getChangeType(args2);
+        assertEquals(ChangeType.PLAN, changeType, "Should recognize 'PLAN' (uppercase) as PLAN command");
+
+        String[] args3 = {"Plan"};
+        changeType = Main.getChangeType(args3);
+        assertEquals(ChangeType.PLAN, changeType, "Should recognize 'Plan' (mixed case) as PLAN command");
+    }
+
+    @Test
     void testTargetSchema() throws ParseException {
         String[] args = {"create_script", "--target-schemas", "schema1,schema2"};
         CommandLine commandLine = Main.buildCommandOptions(args);

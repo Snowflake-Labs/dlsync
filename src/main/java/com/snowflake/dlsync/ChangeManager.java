@@ -86,6 +86,69 @@ public class ChangeManager {
         }
     }
 
+    public void plan()  throws SQLException, IOException, NoSuchAlgorithmException {
+        log.info("Started PLAN command for deployment");
+
+        try {
+            scriptRepo.loadScriptHash();
+
+            // Get all changed scripts (same logic as deploy)
+            List<Script> changedScripts = scriptSource.getAllScripts()
+                    .stream()
+                    .filter(script -> !config.isScriptExcluded(script))
+                    .filter(script -> scriptRepo.isScriptChanged(script))
+                    .collect(Collectors.toList());
+            dependencyGraph.addNodes(changedScripts);
+            List<Script> sequencedScripts = dependencyGraph.topologicalSort();
+
+            // Show deployment summary
+            System.out.println("========== DEPLOYMENT PLAN ==========");
+            System.out.println("Total changes to deploy: " + changedScripts.size());
+            System.out.println("========== DEPLOYMENT ORDER ==========");
+
+            if (changedScripts.isEmpty()) {
+                System.out.println("PLAN: No changes to deploy");
+                System.out.println("========== END PLAN ==========");
+                return;
+            }
+
+            int index = 1;
+            for (Script script : sequencedScripts) {
+                parameterInjector.injectParameters(script);
+                validateScript(script);
+                System.out.println(index + " of " + sequencedScripts.size() + ": " + script);
+
+                if (script instanceof MigrationScript) {
+                    MigrationScript migration = (MigrationScript) script;
+                    System.out.println("   Type: Migration");
+                    System.out.println("   Object: " + migration.getFullObjectName() + " (Version: " + migration.getVersion() + ")");
+                    System.out.println("   Author: " + (migration.getAuthor() != null ? migration.getAuthor() : "N/A"));
+                    System.out.println("   Hash: " + script.getHash());
+                } else {
+                    System.out.println("   Type: Declarative");
+                    System.out.println("   Object: " + script.getFullObjectName());
+                    System.out.println("   Object Type: " + script.getObjectType());
+                    System.out.println("   Hash: " + script.getHash());
+                }
+
+                // Show full SQL content without truncation
+                System.out.println("   Content:");
+                System.out.println(script.getContent());
+                System.out.println("========== END CONTENT ==========");
+
+                index++;
+            }
+
+            System.out.println("========== END PLAN ==========");
+
+        } catch (Exception e) {
+            System.err.println("ERROR: Plan command failed: " + e.getMessage());
+            log.error("Plan command failed: {}", e.getMessage());
+            System.out.println("========== END PLAN ==========");
+            throw e;
+        }
+    }
+
     public void rollback() throws SQLException, IOException {
         log.info("Starting ROLLBACK scripts.");
         startSync(ChangeType.ROLLBACK);
@@ -282,7 +345,5 @@ public class ChangeManager {
     public void endSyncSuccess(ChangeType changeType, Long changeCount) throws SQLException {
         scriptRepo.updateChangeSync(changeType, Status.SUCCESS, "Successfully completed " + changeType.toString() , changeCount);
     }
-
-
 }
 

@@ -422,5 +422,43 @@ class ChangeManagerTest {
 
         verify(mockScriptRepo, times(1)).createScriptObject(any(), eq(false));
     }
+
+    @Test
+    @DisplayName("Plan command should NOT make any database changes")
+    void testPlanCommandMakesNoDatabaseChanges() throws SQLException, IOException, NoSuchAlgorithmException {
+        // Setup: Create test scripts with changes
+        SchemaScript tableScript = ScriptFactory.getSchemaScript(
+            "TEST_DB", "TEST_SCHEMA", ScriptObjectType.TABLES,
+            "MY_TABLE", "CREATE TABLE MY_TABLE(id INT);"
+        );
+
+        SchemaScript viewScript = ScriptFactory.getSchemaScript(
+            "TEST_DB", "TEST_SCHEMA", ScriptObjectType.VIEWS,
+            "MY_VIEW", "CREATE VIEW MY_VIEW AS SELECT * FROM MY_TABLE;"
+        );
+
+        List<Script> allScripts = Arrays.asList(tableScript, viewScript);
+
+        // Mock the behavior
+        when(mockConfig.isScriptExcluded(any())).thenReturn(false);
+        when(mockScriptSource.getAllScripts()).thenReturn(allScripts);
+        when(mockScriptRepo.isScriptChanged(any())).thenReturn(true);
+
+        List<Script> orderedScripts = Arrays.asList(tableScript, viewScript);
+        when(mockDependencyGraph.topologicalSort()).thenReturn(orderedScripts);
+
+        // Execute plan command
+        changeManager.plan();
+
+        // Assert: Verify NO database modifications were made
+        verify(mockScriptRepo, never()).createScriptObject(any(), anyBoolean());
+        verify(mockScriptRepo, never()).insertChangeSync(any(), any(), anyString());
+        verify(mockScriptRepo, never()).updateChangeSync(any(), any(), anyString(), any());
+        verify(mockScriptRepo, never()).executeRollback(any());
+
+        // Verify that only read-only operations were called
+        verify(mockScriptRepo, times(1)).loadScriptHash();
+        verify(mockParameterInjector, times(2)).injectParameters(isA(Script.class));
+    }
 }
 
