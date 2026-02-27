@@ -1,6 +1,10 @@
 # DLSync Changelog
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [3.2.0] - 2026-02-27
+### Added
+- Added PLAN command for deployment preview (dry-run without database modifications)
 ## [3.1.0] - 2026-02-10
 ### Added
 - Added support for AGENTS object type

@@ -56,6 +56,10 @@ public class Main {
                     changeManager.test();
                     log.info("DLsync successfully tested.");
                     break;
+                case PLAN:
+                    changeManager.plan();
+                    log.info("DLSync plan completed successfully.");
+                    break;
                 default:
                     log.error("Change type not specified as an argument.");
             }
@@ -103,7 +107,7 @@ public class Main {
             CommandLine commandLine = new DefaultParser().parse(options, argsWithoutCommand);
             return commandLine;
         } catch (ParseException e) {
-            new HelpFormatter().printHelp("dlsync [deploy|rollback|verify|create-script|create-lineage] [options]", "options:", options, "");
+            new HelpFormatter().printHelp("dlsync [deploy|rollback|verify|create-script|create-lineage|test|plan] [options]", "options:", options, "");
             throw e;
         }
 
