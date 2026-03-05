@@ -28,6 +28,7 @@ DLSync also understands interdependencies between different scripts, thus applyi
    1. [How to use this tool](#how-to-use-this-tool)
       1. [Deploy](#deploy)
       1. [Test](#test)
+      1. [Plan](#plan)
       1. [Rollback](#rollback)
       1. [Verify](#verify)
       1. [Create script](#create-script)
@@ -41,6 +42,7 @@ DLSync also understands interdependencies between different scripts, thus applyi
    1. [dl_sync_change_sync](#dl_sync_change_sync)
    1. [dl_sync_script_event](#dl_sync_script_event)
 1. [Example scripts](#example-scripts)
+1. [Contributing](#contributing)
 
 ## Key Features 
 - Hybrid Change Management: It combines declarative and migration based change management to manage database changes
@@ -230,9 +232,9 @@ Writing unit tests follows a 3-step process:
 - Add the query to refer to the database object with a select statement.
 For example, if you have a view named `SAMPLE_VIEW`  with the following content:
 ```
-create or replace view ${MY_DB}.{MY_SCHEMA}.SAMPLE_VIEW as 
-select tb1.id, tb1.my_column || '->' || tb2.my_column as my_new_column from ${MY_DB}.{MY_SECOND_SCHEMA}.MY_TABLE_1 tb_1
-join ${MY_DB}.{MY_SECOND_SCHEMA}.MY_TABLE_2 tb2 
+create or replace view ${MY_DB}.${MY_SCHEMA}.SAMPLE_VIEW as 
+select tb1.id, tb1.my_column || '->' || tb2.my_column as my_new_column from ${MY_DB}.${MY_SECOND_SCHEMA}.MY_TABLE_1 tb_1
+join ${MY_DB}.${MY_SECOND_SCHEMA}.MY_TABLE_2 tb2 
     on tb1.id = tb2.id;
 ```
 
@@ -250,7 +252,7 @@ MY_TABLE_2 as (
 expected_data as (
     select '1' as id, 'old_value1->new_value1' as my_new_column
 )
-select * from ${MY_DB}.{MY_SCHEMA}.SAMPLE_VIEW;
+select * from ${MY_DB}.${MY_SCHEMA}.SAMPLE_VIEW;
 ```
 Then dlsync will generate a query with the following content to validate the test:
 ```
@@ -267,8 +269,8 @@ expected_data as (
     select '1' as id, 'old_value1->new_value1' as my_new_column
 ),
 ACTUAL_DATA as (
-select tb1.id, tb1.my_column || '->' || tb2.my_column as my_new_column from ${MY_DB}.{MY_SECOND_SCHEMA}.MY_TABLE_1 tb_1
-join ${MY_DB}.{MY_SECOND_SCHEMA}.MY_TABLE_2 tb2 
+select tb1.id, tb1.my_column || '->' || tb2.my_column as my_new_column from ${MY_DB}.${MY_SECOND_SCHEMA}.MY_TABLE_1 tb_1
+join ${MY_DB}.${MY_SECOND_SCHEMA}.MY_TABLE_2 tb2 
     on tb1.id = tb2.id
 ),
 assertion as (
@@ -408,6 +410,53 @@ The test module can be triggered using the following command:
 dlsync test -s path/to/db_scripts -p dev
 ```
 
+#### Plan
+This module is used to preview changes before deploying them to the database. It shows what changes would be made without actually executing them, allowing you to review and understand the impact before committing to the deployment.
+The plan command performs a dry-run analysis that:
+- Identifies which scripts have changed since the last deployment
+- Shows the dependency order in which changes would be applied
+- Displays the complete content of all scripts that would be executed
+- Provides metadata about each script (type, version, author, hash)
+- **Does NOT modify the database in any way** (read-only operation)
+
+The plan module can be triggered using the following command:
+```
+dlsync plan -s path/to/db_scripts -p dev
+```
+
+**Output Example:**
+```
+========== DEPLOYMENT PLAN ==========
+Total changes to deploy: 2
+========== DEPLOYMENT ORDER ==========
+1 of 2: MY_DB.MY_SCHEMA.SAMPLE_TABLE
+   Type: Migration
+   Object: MY_DB.MY_SCHEMA.SAMPLE_TABLE (Version: 1)
+   Author: john.doe@company.com
+   Hash: a1b2c3d4e5f6g7h8
+   Content:
+   CREATE TABLE MY_DB.MY_SCHEMA.SAMPLE_TABLE(id VARCHAR, my_column VARCHAR);
+========== END CONTENT ==========
+2 of 2: MY_DB.MY_SCHEMA.SAMPLE_VIEW
+   Type: Declarative
+   Object: MY_DB.MY_SCHEMA.SAMPLE_VIEW
+   Object Type: VIEW
+   Hash: b2c3d4e5f6g7h8i9
+   Content:
+   CREATE VIEW MY_DB.MY_SCHEMA.SAMPLE_VIEW AS SELECT * FROM MY_DB.MY_SCHEMA.SAMPLE_TABLE;
+========== END CONTENT ==========
+========== END PLAN ==========
+```
+
+**Use Cases:**
+- Review changes before deployment in development/staging environments
+- Audit what will be deployed to production
+- Integrate with CI/CD pipelines as a pre-deployment validation step
+- Generate deployment plans for approval workflows
+- Verify script dependencies are correct before execution
+
+**Note:** The plan command is read-only and safe to run multiple times without side effects. However, it will create the necessary DLSync metadata tables if they don't already exist in the target schema.
+
 #### Rollback
 This module is used to rollback changes to the previous deployment. It will rollback the changes to the database objects based on the script files. This should be triggered after you have rolled back the git repository of the script files. 
 The rollback works first by identifying the changes between the current deployment and the previous deployment. For declarative scripts (views, udf, stored procedures and file formats) it will replace them with the current script(i.e previous version as you have already made git rollback). 
@@ -471,7 +520,7 @@ For managing account-level objects, the role must have:
 ## DLSync Metadata Tables
 DLSync stores script metadata, deployment history, and logs in the database.
 DLSync will depend on these tables to track the changes and deployment history. If these tables are missing from the schema and database provided in the connection parameter, then DLSync will create these tables. 
-Please make sure the role provided in the connection has the necessary privileges to create tables in the schema. 
+Please make sure the role provided in the connection has the necessary privileges to create tables in the schema.
 
 **_N.B: Since DLSync uses these tables to track the changes, it is recommended not to delete or change these tables. It is also important not to change the schema of the connection. If DLSync is not able to find these tables in the schema, it will create them and assume it is running for the first time._**
 
@@ -517,3 +566,9 @@ created_ts: the timestamp when was this change added
 ```
 ## Example scripts
 To explore the tool, you can use the example scripts provided in the `example_scripts` directory.
+
+## Contributing
+
+We welcome contributions from the community! Whether you're fixing bugs, adding features, or improving documentation, your help is appreciated.
+
+Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to this project.
