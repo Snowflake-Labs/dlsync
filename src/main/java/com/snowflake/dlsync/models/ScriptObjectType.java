@@ -1,6 +1,6 @@
 package com.snowflake.dlsync.models;
 
-public enum ScriptObjectType {
+public enum ScriptObjectType {    
     VIEWS("VIEW", ObjectLevel.SCHEMA, false),
     FUNCTIONS("FUNCTION", ObjectLevel.SCHEMA, false),
     PROCEDURES("PROCEDURE", ObjectLevel.SCHEMA, false),
@@ -23,6 +23,7 @@ public enum ScriptObjectType {
     STORAGE_INTEGRATIONS("STORAGE INTEGRATION", ObjectLevel.ACCOUNT, false),
     WAREHOUSES("WAREHOUSE", ObjectLevel.ACCOUNT, false),
     NOTEBOOKS("NOTEBOOK", ObjectLevel.SCHEMA, false),
+    TAGS("TAG", ObjectLevel.SCHEMA, false),
 
     // Migration-enabled objects
     TABLES("TABLE", ObjectLevel.SCHEMA, true),
