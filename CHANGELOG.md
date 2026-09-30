@@ -2,7 +2,7 @@
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.3.0] - 2026-09-30
 ### Added
 - Workload Identity Federation (WIF) JDBC auth: pass `token` and `workloadIdentityProvider` through to Snowflake JDBC
 - Upgraded `snowflake-jdbc` from 3.25.1 to 3.28.0 (WIF authenticator support)
