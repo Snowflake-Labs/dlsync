@@ -6,6 +6,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added
 - Workload Identity Federation (WIF) JDBC auth: pass `token` and `workloadIdentityProvider` through to Snowflake JDBC
 - Upgraded `snowflake-jdbc` from 3.25.1 to 3.28.0 (WIF authenticator support)
+### Changed
+- Updated GitHub Actions to supported versions: `actions/checkout` v7, `actions/setup-java` v6, `softprops/action-gh-release` v3
+- Replaced deprecated `gradle/gradle-build-action` with `gradle/actions/setup-gradle` v6 (using the open-source `basic` cache provider)
 
 ## [3.2.0] - 2026-02-27
 ### Added
