@@ -347,6 +347,8 @@ connection:
     authenticator: # snowflake authenticator(optional)
     private_key_file: # snowflake p8 file (optional)
     private_key_pwd: # password for private key file (optional)
+    token: # OAuth or WIF token (optional)
+    workloadIdentityProvider: # OIDC, AWS, AZURE, or GCP when authenticator is WORKLOAD_IDENTITY (optional)
  ```
 The `configTables` is used by create script module to add the data of the tables to the script file.
 The `scriptExclusion` is used to exclude the script files from being processed by this tool. 
@@ -362,11 +364,13 @@ db=database  #your database
 schema=dl_sync  #your dl_sync schema. It will use this schema to store neccessary tables for this tool
 user=user_name  #user name of the database
 password=password #password for the connection (optional)
-authenticator=externalbrowser #authenticator used for the connection (optional)
+authenticator=externalbrowser #authenticator used for the connection (optional). Use WORKLOAD_IDENTITY for WIF
 warehouse=my_warehouse #warehouse to be used by the connection
 role=my_role    #role used by this tool
 private_key_file=my_private_key_file.p8     # private key file used for the connection (optional)
 private_key_pwd=my_private_key_password  # password for the private key file (optional)
+token=oauth_or_wif_token # OAuth / WIF token (optional)
+workloadIdentityProvider=OIDC # OIDC, AWS, AZURE, or GCP when authenticator=WORKLOAD_IDENTITY (optional)
 JAVA_TOOL_OPTIONS ="-Dnet.snowflake.jdbc.enableBouncyCastle=true" # This must be set if using encrypted key-pair authentication
 ```
 
