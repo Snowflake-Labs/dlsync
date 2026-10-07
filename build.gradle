@@ -16,7 +16,7 @@ repositories {
 dependencies {
 
     implementation 'org.apache.commons:commons-text:1.14.0'
-    implementation 'net.snowflake:snowflake-jdbc:3.25.1'
+    implementation 'net.snowflake:snowflake-jdbc:3.28.0'
     implementation 'ch.qos.logback:logback-core:1.5.25'
     implementation 'ch.qos.logback:logback-classic:1.5.25'
     implementation 'org.slf4j:slf4j-api:2.0.4'
